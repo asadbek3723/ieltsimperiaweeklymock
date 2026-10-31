@@ -1,9 +1,8 @@
-# Production Dockerfile for Hugging Face Spaces (Node.js + Prisma)
+# Production Dockerfile for Render & Standard Cloud (Node.js + Prisma)
 FROM node:20-slim AS builder
 
 WORKDIR /app
 
-# Install OpenSSL for Prisma
 RUN apt-get update -y && apt-get install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 
 COPY package*.json ./
@@ -13,7 +12,6 @@ RUN npm install
 
 COPY . .
 
-# Generate Prisma Client & compile TypeScript
 RUN npx prisma generate
 RUN npm run build
 
@@ -24,23 +22,16 @@ WORKDIR /app
 
 RUN apt-get update -y && apt-get install -y openssl ca-certificates curl && rm -rf /var/lib/apt/lists/*
 
-# Hugging Face Spaces runs as user 1000 with home /app
-RUN useradd -m -u 1000 user
-USER user
-ENV HOME=/app \
-    PATH=/app/node_modules/.bin:$PATH \
-    PORT=7860 \
+ENV PORT=5000 \
     NODE_ENV=production
 
-WORKDIR /app
+COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/question_database ./question_database
+COPY --from=builder /app/uploads ./uploads
 
-COPY --chown=user:user --from=builder /app/package*.json ./
-COPY --chown=user:user --from=builder /app/node_modules ./node_modules
-COPY --chown=user:user --from=builder /app/dist ./dist
-COPY --chown=user:user --from=builder /app/prisma ./prisma
-COPY --chown=user:user --from=builder /app/question_database ./question_database
-COPY --chown=user:user --from=builder /app/uploads ./uploads
-
-EXPOSE 7860
+EXPOSE 5000
 
 CMD ["node", "dist/server.js"]
