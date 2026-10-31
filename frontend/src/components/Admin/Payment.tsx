@@ -405,15 +405,21 @@ export default function Payment() {
               <div className="relative z-10">
                 <div className="flex justify-between items-start mb-6">
                   <div className="flex gap-1.5">
-                    <div className="w-7 h-7 rounded-full bg-red-500/80" />
-                    <div className="w-7 h-7 rounded-full bg-orange-400/80 -ml-3.5" />
+                    <div className="w-7 h-7 rounded-full bg-blue-500/80" />
+                    <div className="w-7 h-7 rounded-full bg-amber-400/80 -ml-3.5" />
                   </div>
-                  <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">UZCARD</span>
+                  <span className="text-[12px] font-black italic text-white/90 tracking-wider">VISA</span>
                 </div>
                 <p className="text-xl font-mono font-bold tracking-[0.22em] text-white">
                   {statusData?.cardNumber ?? '•••• •••• •••• ••••'}
                 </p>
-                <p className="text-[10px] text-white/40 mt-3 uppercase tracking-widest">To'lov uchun karta</p>
+                <div className="flex justify-between items-end mt-4">
+                  <div>
+                    <p className="text-[9px] text-white/40 uppercase tracking-widest">Karta egasi</p>
+                    <p className="text-xs font-bold text-white/90 tracking-wider uppercase mt-0.5">Asadbek Jumanazarov</p>
+                  </div>
+                  <span className="text-[10px] text-white/40 uppercase tracking-widest">USD / UZS</span>
+                </div>
               </div>
             </div>
 

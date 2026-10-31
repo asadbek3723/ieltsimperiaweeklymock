@@ -13,8 +13,17 @@ export async function getUSDRate(): Promise<number> {
   return new Promise((resolve) => {
     const url = 'https://cbu.uz/uz/arkhiv-kursov-valyut/json/USD/';
     
-    const req = https.get(url, { timeout: 8000 }, (res) => {
+    const options = {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'application/json',
+      },
+      timeout: 10000,
+    };
+
+    const req = https.get(url, options, (res) => {
       if (res.statusCode !== 200) {
+        console.warn(`[CBU] Unexpected status code: ${res.statusCode}`);
         return resolve(cachedRate || 12800);
       }
 
