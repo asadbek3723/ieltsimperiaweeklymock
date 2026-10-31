@@ -163,11 +163,22 @@ function AnimatedNumber({ value, format }: { value: number; format: (n: number) 
 
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function Payment() {
-  const [statusData, setStatusData]     = useState<PaymentStatusData | null>(null);
+  // Initial fallback data so page renders instantly without waiting for network
+  const [statusData, setStatusData]     = useState<PaymentStatusData>({
+    daysLeft: 30,
+    isOverdue: false,
+    nextDueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+    cycleStartDate: new Date().toISOString(),
+    costUSD: 5.20,
+    costUZS: 62500,
+    exchangeRate: 12023,
+    cardNumber: '4916 9902 5000 4410',
+    pendingPayment: null,
+  });
   const [history, setHistory]           = useState<PaymentRecord[]>([]);
   const [totalRecords, setTotalRecords] = useState(0);
   const [page, setPage]                 = useState(1);
-  const [loading, setLoading]           = useState(true);
+  const [loading, setLoading]           = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [refreshing, setRefreshing]     = useState(false);
 
@@ -274,21 +285,7 @@ export default function Payment() {
   }[urgency];
 
   // ── Skeleton loader ───────────────────────────────────────────────────────
-  if (loading && !statusData) {
-    return (
-      <div className="w-full space-y-6">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {[1,2,3].map(i => <Skeleton key={i} className="h-32" />)}
-        </div>
-        <Skeleton className="h-28" />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Skeleton className="h-72" />
-          <Skeleton className="h-72" />
-        </div>
-        <Skeleton className="h-64" />
-      </div>
-    );
-  }
+  // Instant render with real or cached/initial data - no black blocking screen!
 
   return (
     <>
