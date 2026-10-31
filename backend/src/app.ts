@@ -7,7 +7,7 @@ import { ENV } from './config/env';
 import authRoutes from './routes/authRoutes';
 import adminRoutes from './routes/adminRoutes';
 import studentRoutes from './routes/studentRoutes';
-import { handleTelegramWebhook } from './controllers/paymentController';
+import { handleTelegramWebhook, handleServeReceipt } from './controllers/paymentController';
 import { errorHandler } from './middleware/errorHandler';
 
 const app = express();
@@ -20,7 +20,10 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(helmet({ contentSecurityPolicy: false }));
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+}));
 
 const allowedOrigins = (ENV.CLIENT_URL || '')
   .split(',')
@@ -76,6 +79,9 @@ app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 app.use('/uploads', express.static(path.resolve(__dirname, '../uploads')));
+
+// Public receipt serving for receipt images in admin modal (no auth required)
+app.get('/api/admin/payment/receipt/:filename', handleServeReceipt);
 
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);

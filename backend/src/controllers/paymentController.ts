@@ -166,6 +166,9 @@ export async function handleServeReceipt(req: Request, res: Response) {
       return res.status(404).json({ success: false, message: 'Chek fayli topilmadi' });
     }
 
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
     return res.sendFile(filepath);
   } catch (error) {
     console.error('[PaymentController] Error serving receipt:', error);

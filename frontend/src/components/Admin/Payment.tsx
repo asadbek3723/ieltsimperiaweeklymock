@@ -437,8 +437,8 @@ export default function Payment() {
     } catch {}
   }, []);
 
-  const fetchHistory = useCallback(async (p = 1) => {
-    setHistoryLoading(true);
+  const fetchHistory = useCallback(async (p = 1, silent = false) => {
+    if (!silent) setHistoryLoading(true);
     try {
       const res = await adminApi.getPaymentHistory(p, 10);
       if (res.data.success) {
@@ -447,7 +447,7 @@ export default function Payment() {
         setPage(p);
       }
     } finally {
-      setHistoryLoading(false);
+      if (!silent) setHistoryLoading(false);
     }
   }, []);
 
@@ -455,6 +455,14 @@ export default function Payment() {
     (async () => {
       await Promise.all([fetchStatus(), fetchHistory(1)]);
     })();
+
+    // Avtomatik yangilanish: har 8 soniyada fonda jim yangilab turadi
+    const interval = setInterval(() => {
+      fetchStatus();
+      fetchHistory(1, true);
+    }, 8000);
+
+    return () => clearInterval(interval);
   }, [fetchStatus, fetchHistory]);
 
   // ── Actions ────────────────────────────────────────────────────────────────
@@ -749,17 +757,6 @@ export default function Payment() {
                 <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">{totalRecords} ta yozuv</p>
               </div>
             </div>
-            <button
-              onClick={() => fetchHistory(page)}
-              disabled={historyLoading}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-700/50 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 text-xs font-semibold transition-colors disabled:opacity-50"
-            >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className={historyLoading ? 'spin' : ''}>
-                <polyline points="23 4 23 10 17 10" /><polyline points="1 20 1 14 7 14" />
-                <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" />
-              </svg>
-              Yangilash
-            </button>
           </div>
 
           {/* Column headers */}

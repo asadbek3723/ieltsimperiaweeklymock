@@ -25,6 +25,8 @@ import {
 } from '../controllers/paymentController';
 
 const router = Router();
+// Payment portal endpoints
+router.get('/payment/receipt/:filename', handleServeReceipt); // Public endpoint so <img> tags can render receipts
 router.use(authenticate, requireRole('ADMIN'));
 
 router.get('/dashboard', handleGetDashboard);
@@ -38,12 +40,11 @@ router.get('/results', handleGetAllResults);
 router.get('/live', handleGetLiveSessions);
 router.get('/reset-requests', handleGetPasswordResetRequests);
 
-// Payment portal endpoints
+// Protected payment endpoints
 router.get('/payment/status', handleGetPaymentStatus);
 router.get('/payment/history', handleGetPaymentHistory);
 router.get('/payment/rate', handleGetRate);
 router.post('/payment/submit', handleSubmitReceipt);
-router.get('/payment/receipt/:filename', handleServeReceipt);
 router.patch('/payment/:id/confirm', handleManualConfirm);
 router.patch('/payment/:id/reject', handleManualReject);
 router.patch('/payment/timer', handleUpdateTimer);
