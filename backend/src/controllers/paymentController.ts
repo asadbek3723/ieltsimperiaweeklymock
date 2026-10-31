@@ -221,7 +221,9 @@ export async function handleTelegramWebhook(req: Request, res: Response) {
   try {
     const { callback_query, message } = req.body;
     if (callback_query && callback_query.data && callback_query.id) {
-      await handleTelegramCallback(callback_query.data, callback_query.id);
+      const chatId = callback_query.message?.chat?.id;
+      const messageId = callback_query.message?.message_id;
+      await handleTelegramCallback(callback_query.data, callback_query.id, chatId, messageId);
     } else if (message && message.text) {
       const chatId = message.chat?.id;
       await handleBotCommand(message.text, chatId);

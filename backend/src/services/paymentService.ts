@@ -197,7 +197,7 @@ export async function submitPayment(params: {
   return record;
 }
 
-export async function confirmPayment(recordId: string) {
+export async function confirmPayment(recordId: string, replyChatId?: string | number, replyMessageId?: number) {
   const record = await prisma.paymentRecord.findUnique({
     where: { id: recordId },
   });
@@ -238,8 +238,10 @@ export async function confirmPayment(recordId: string) {
   ]);
 
   cache.invalidate('payment:status');
+  cache.invalidate('payment:history');
 
-  if (record.telegramMsgId) {
+  const msgIdToEdit = replyMessageId || record.telegramMsgId;
+  if (msgIdToEdit) {
     const formattedDue = new Intl.DateTimeFormat('uz-UZ', {
       day: '2-digit',
       month: '2-digit',
@@ -247,17 +249,18 @@ export async function confirmPayment(recordId: string) {
     }).format(newDueDate);
 
     await editPaymentMessage(
-      record.telegramMsgId,
-      `✅ *To'lov muvaffaqiyatli tasdiqlandi!*\n\n` +
+      msgIdToEdit,
+      `✅ *To'lov qabul qilindi!*\n\n` +
       `📅 *Yangi to'lov muddati:* ${formattedDue} gacha (30 kun qo'shildi)\n` +
-      `🆔 \`${recordId}\``
+      `🆔 \`${recordId}\``,
+      replyChatId
     );
   }
 
   return { success: true, newDueDate };
 }
 
-export async function rejectPayment(recordId: string, reason?: string) {
+export async function rejectPayment(recordId: string, reason?: string, replyChatId?: string | number, replyMessageId?: number) {
   const record = await prisma.paymentRecord.findUnique({
     where: { id: recordId },
   });
@@ -276,29 +279,37 @@ export async function rejectPayment(recordId: string, reason?: string) {
     data: {
       status: 'REJECTED',
       rejectedAt: now,
-      rejectedReason: reason || 'Admin tomonidan rad etildi',
+      rejectedReason: reason || 'Rad etildi',
     },
   });
 
   cache.invalidate('payment:status');
+  cache.invalidate('payment:history');
 
-  if (record.telegramMsgId) {
+  const msgIdToEdit = replyMessageId || record.telegramMsgId;
+  if (msgIdToEdit) {
     await editPaymentMessage(
-      record.telegramMsgId,
-      `❌ *To'lov rad etildi*\n\n` +
+      msgIdToEdit,
+      `❌ *To'lov rad etildi!*\n\n` +
       `Sabab: ${reason || 'Chek noaniq yoki qabul qilinmadi'}\n` +
-      `🆔 \`${recordId}\``
+      `🆔 \`${recordId}\``,
+      replyChatId
     );
   }
 
   return { success: true };
 }
 
-export async function handleTelegramCallback(callbackData: string, callbackQueryId: string) {
+export async function handleTelegramCallback(
+  callbackData: string,
+  callbackQueryId: string,
+  chatId?: string | number,
+  messageId?: number
+) {
   if (callbackData.startsWith('confirm_')) {
     const recordId = callbackData.replace('confirm_', '');
     try {
-      await confirmPayment(recordId);
+      await confirmPayment(recordId, chatId, messageId);
       await answerCallbackQuery(callbackQueryId, '✅ To\'lov tasdiqlandi! 30 kun qo\'shildi.', true);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Xatolik yuz berdi';
@@ -307,7 +318,7 @@ export async function handleTelegramCallback(callbackData: string, callbackQuery
   } else if (callbackData.startsWith('reject_')) {
     const recordId = callbackData.replace('reject_', '');
     try {
-      await rejectPayment(recordId, 'Telegram orqali rad etildi');
+      await rejectPayment(recordId, 'Chek rad etildi', chatId, messageId);
       await answerCallbackQuery(callbackQueryId, '❌ To\'lov rad etildi.', true);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Xatolik yuz berdi';

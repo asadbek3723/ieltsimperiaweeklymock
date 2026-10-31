@@ -208,13 +208,33 @@ export async function sendPaymentNotification(params: {
   return res.ok && res.result ? res.result.message_id : null;
 }
 
-export async function editPaymentMessage(messageId: number, text: string): Promise<void> {
-  await telegramRequest('editMessageText', {
-    chat_id: ENV.TELEGRAM_CHAT_ID,
+export async function editPaymentMessage(
+  messageId: number,
+  text: string,
+  chatId?: string | number
+): Promise<void> {
+  const targetChatId = chatId || ENV.TELEGRAM_CHAT_ID;
+  if (!targetChatId) return;
+
+  // Try editMessageCaption first (if message is a photo/document)
+  const captionRes = await telegramRequest('editMessageCaption', {
+    chat_id: targetChatId,
     message_id: messageId,
-    text,
+    caption: text,
     parse_mode: 'Markdown',
+    reply_markup: { inline_keyboard: [] }, // Remove action buttons!
   });
+
+  // If message was plain text, fallback to editMessageText
+  if (!captionRes.ok) {
+    await telegramRequest('editMessageText', {
+      chat_id: targetChatId,
+      message_id: messageId,
+      text,
+      parse_mode: 'Markdown',
+      reply_markup: { inline_keyboard: [] }, // Remove action buttons!
+    });
+  }
 }
 
 export async function answerCallbackQuery(callbackQueryId: string, text: string, showAlert = false): Promise<void> {
@@ -250,9 +270,9 @@ export async function sendMessage(
 // ─── Main Keyboard Menu (Clean, Professional, No slash typing needed!) ────────
 export const MAIN_KEYBOARD = {
   keyboard: [
-    [{ text: '📊 Holatni ko\'rish' }, { text: '➕ 30 kun qo\'shish' }],
-    [{ text: '➕ Kun qo\'shish' }, { text: '➖ Kun ayirish' }],
-    [{ text: '📅 Sana belgilash' }, { text: 'ℹ️ Yordam' }],
+    [{ text: '📊 Holatni ko\'rish' }, { text: '📜 To\'lovlar tarixi' }],
+    [{ text: '➕ 30 kun qo\'shish' }, { text: '➕ Kun qo\'shish' }],
+    [{ text: '➖ Kun ayirish' }, { text: '📅 Sana belgilash' }],
   ],
   resize_keyboard: true,
   is_persistent: true,
@@ -263,7 +283,7 @@ export async function handleBotCommand(text: string, replyChatId?: string | numb
   if (!text) return;
 
   const targetChatId = replyChatId || ENV.TELEGRAM_CHAT_ID;
-  const { updateDueDate, getPaymentStatus } = await import('./paymentService');
+  const { updateDueDate, getPaymentStatus, getPaymentHistory } = await import('./paymentService');
 
   const cleanText = text.trim();
   const lowerText = cleanText.toLowerCase();
@@ -284,6 +304,25 @@ export async function handleBotCommand(text: string, replyChatId?: string | numb
         `${status.pendingPayment ? '⚠️ *Kutilayotgan to\'lov cheki mavjud.*' : '✅ Kutilayotgan to\'lov cheklari yo\'q.'}`;
 
       await sendMessage(message, targetChatId, MAIN_KEYBOARD);
+      return;
+    }
+
+    // 1.1 PAYMENT HISTORY
+    if (lowerText === '/history' || lowerText === '📜 to\'lovlar tarixi' || lowerText === 'tarix') {
+      const history = await getPaymentHistory(1, 5);
+      if (!history.records || history.records.length === 0) {
+        await sendMessage(`Hali hech qanday to'lov cheki mavjud emas.`, targetChatId, MAIN_KEYBOARD);
+        return;
+      }
+
+      let historyText = `*So'nggi to'lovlar tarixi:*\n\n`;
+      for (const rec of history.records) {
+        const dateStr = new Intl.DateTimeFormat('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(rec.submittedAt));
+        const statusBadge = rec.status === 'CONFIRMED' ? '✅ Tasdiqlangan' : rec.status === 'REJECTED' ? '❌ Rad etilgan' : '⏳ Kutilmoqda';
+        historyText += `• ${dateStr} — *${Math.round(rec.amountUZS).toLocaleString('uz-UZ')} so'm* (${statusBadge})\n`;
+      }
+
+      await sendMessage(historyText, targetChatId, MAIN_KEYBOARD);
       return;
     }
 
