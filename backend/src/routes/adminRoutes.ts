@@ -13,6 +13,15 @@ import {
   handleGetPasswordResetRequests,
 } from '../controllers/adminController';
 import { handleGetAllResults } from '../controllers/resultsController';
+import {
+  handleGetPaymentStatus,
+  handleGetPaymentHistory,
+  handleGetRate,
+  handleSubmitReceipt,
+  handleServeReceipt,
+  handleManualConfirm,
+  handleManualReject,
+} from '../controllers/paymentController';
 
 const router = Router();
 router.use(authenticate, requireRole('ADMIN'));
@@ -27,5 +36,14 @@ router.get('/students', handleGetStudents);
 router.get('/results', handleGetAllResults);
 router.get('/live', handleGetLiveSessions);
 router.get('/reset-requests', handleGetPasswordResetRequests);
+
+// Payment portal endpoints
+router.get('/payment/status', handleGetPaymentStatus);
+router.get('/payment/history', handleGetPaymentHistory);
+router.get('/payment/rate', handleGetRate);
+router.post('/payment/submit', handleSubmitReceipt);
+router.get('/payment/receipt/:filename', handleServeReceipt);
+router.patch('/payment/:id/confirm', handleManualConfirm);
+router.patch('/payment/:id/reject', handleManualReject);
 
 export default router;

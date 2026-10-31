@@ -7,6 +7,7 @@ import { ENV } from './config/env';
 import authRoutes from './routes/authRoutes';
 import adminRoutes from './routes/adminRoutes';
 import studentRoutes from './routes/studentRoutes';
+import { handleTelegramWebhook } from './controllers/paymentController';
 import { errorHandler } from './middleware/errorHandler';
 
 const app = express();
@@ -79,6 +80,9 @@ app.use('/uploads', express.static(path.resolve(__dirname, '../uploads')));
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/student', studentRoutes);
+
+// Telegram bot webhook endpoint (public callback from Telegram)
+app.post('/api/telegram/webhook', handleTelegramWebhook);
 
 // Health check (JSON)
 app.get('/health', (_req, res) => res.json({ status: 'ok', uptime: process.uptime(), timestamp: new Date() }));

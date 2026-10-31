@@ -63,6 +63,7 @@ export async function joinTest(studentId: string, pin: string) {
       return {
         testSessionId: session.id,
         title: session.title,
+        serverTime: new Date().toISOString(),
         sections: sections.map(s => ({
           subject: s.subject,
           sectionType: (s as unknown as { sectionType?: string }).sectionType || 'EXERCISE',
@@ -76,6 +77,7 @@ export async function joinTest(studentId: string, pin: string) {
           sectionType: resumeSectionType,
           sectionOrder: currentSection.sectionOrder,
           deadline: existing.sectionDeadline,
+          serverTime: new Date().toISOString(),
           ...(resumeSectionType === 'PRACTICE_TEST'
             ? { questions: currentClientExercises }
             : { exercises: currentClientExercises }),
@@ -208,6 +210,7 @@ export async function joinTest(studentId: string, pin: string) {
   return {
     testSessionId: session.id,
     title: session.title,
+    serverTime: new Date().toISOString(),
     sections: sections.map(s => ({
       subject: s.subject,
       sectionType: (s as unknown as { sectionType?: string }).sectionType || 'EXERCISE',
@@ -221,6 +224,7 @@ export async function joinTest(studentId: string, pin: string) {
       sectionType: firstSectionType,
       sectionOrder: firstSection.sectionOrder,
       deadline: sectionDeadline,
+      serverTime: new Date().toISOString(),
       ...(firstSectionType === 'PRACTICE_TEST'
         ? { questions: firstClientContent }
         : { exercises: firstClientContent }),
@@ -283,6 +287,7 @@ export async function advanceSection(studentId: string, testSessionId: string, c
     sectionType: nextSectionType,
     sectionOrder: nextSection.sectionOrder,
     deadline: sectionDeadline,
+    serverTime: new Date().toISOString(),
     ...(nextSectionType === 'PRACTICE_TEST'
       ? { questions: clientContent }
       : { exercises: clientContent }),

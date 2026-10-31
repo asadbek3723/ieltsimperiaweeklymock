@@ -55,6 +55,13 @@ export const adminApi = {
   getResults: () => api.get('/admin/results'),
   getLiveSessions: () => api.get('/admin/live'),
   getResetRequests: () => api.get('/admin/reset-requests'),
+  getPaymentStatus: () => api.get('/admin/payment/status'),
+  getPaymentHistory: (page = 1, limit = 20) => api.get(`/admin/payment/history?page=${page}&limit=${limit}`),
+  getPaymentRate: () => api.get('/admin/payment/rate'),
+  submitPaymentReceipt: (formData: FormData) =>
+    api.post('/admin/payment/submit', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }),
 };
 
 export const studentApi = {

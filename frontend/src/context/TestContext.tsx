@@ -15,6 +15,9 @@ interface TestContextType {
   title: string;
   sections: SectionConfig[];
   currentSection: CurrentSection | null;
+  /** ISO string from the server at the moment the current section was started/resumed.
+   *  Used by the timer to correct for client clock drift. */
+  serverTime: string | null;
   answers: Record<string, SubmitAnswer>;
   setAnswer: (questionId: string, answer: SubmitAnswer) => void;
   initTest: (data: JoinTestResponse) => void;
@@ -32,6 +35,7 @@ export function TestProvider({ children }: { children: React.ReactNode }) {
   const [title, setTitle] = useState('');
   const [sections, setSections] = useState<SectionConfig[]>([]);
   const [currentSection, setCurrentSection] = useState<CurrentSection | null>(null);
+  const [serverTime, setServerTime] = useState<string | null>(null);
   const [answers, setAnswers] = useState<Record<string, SubmitAnswer>>({});
 
   const setAnswer = useCallback((questionId: string, answer: SubmitAnswer) => {
@@ -48,6 +52,8 @@ export function TestProvider({ children }: { children: React.ReactNode }) {
     setTitle(data.title);
     setSections(data.sections);
     setCurrentSection(data.currentSection);
+    // Store server time for timer drift correction
+    setServerTime(data.serverTime ?? data.currentSection.serverTime ?? null);
 
     // Start with server-saved answers (from resume)
     let restored: Record<string, SubmitAnswer> = {};
@@ -74,8 +80,11 @@ export function TestProvider({ children }: { children: React.ReactNode }) {
     if (!nextSection) {
       setPhase('completed');
       setCurrentSection(null);
+      setServerTime(null);
     } else {
       setCurrentSection(nextSection);
+      // advanceSection response includes serverTime at the top level of the section object
+      setServerTime(nextSection.serverTime ?? null);
       setPhase('in-section');
     }
   }, []);
@@ -92,6 +101,7 @@ export function TestProvider({ children }: { children: React.ReactNode }) {
     setTitle('');
     setSections([]);
     setCurrentSection(null);
+    setServerTime(null);
     setAnswers({});
     try {
       sessionStorage.removeItem(SS_ANSWERS);
@@ -102,7 +112,7 @@ export function TestProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <TestContext.Provider value={{
-      phase, testSessionId, title, sections, currentSection,
+      phase, testSessionId, title, sections, currentSection, serverTime,
       answers, setAnswer, initTest, goToNextSection, completeTest, getAllAnswers, reset
     }}>
       {children}

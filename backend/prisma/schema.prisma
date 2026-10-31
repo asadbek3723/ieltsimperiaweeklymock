@@ -167,3 +167,38 @@ model PasswordResetRequest {
   @@index([studentId])
   @@index([resetCode])
 }
+
+model PaymentRecord {
+  id             String        @id @default(cuid())
+  amountUZS      Float
+  amountUSD      Float         @default(5.20)
+  exchangeRate   Float
+  receiptUrl     String
+  receiptType    String        // "image" | "pdf"
+  status         PaymentStatus @default(PENDING)
+  periodStart    DateTime
+  periodEnd      DateTime
+  submittedAt    DateTime      @default(now())
+  confirmedAt    DateTime?
+  rejectedAt     DateTime?
+  rejectedReason String?
+  telegramMsgId  Int?
+
+  @@index([status])
+  @@index([periodEnd])
+}
+
+model PaymentSettings {
+  id             String   @id @default("singleton")
+  nextDueDate    DateTime
+  cycleStartDate DateTime
+  isActive       Boolean  @default(true)
+  updatedAt      DateTime @updatedAt
+}
+
+enum PaymentStatus {
+  PENDING
+  CONFIRMED
+  REJECTED
+}
+

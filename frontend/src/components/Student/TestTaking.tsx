@@ -16,7 +16,7 @@ import ExpulsionOverlay from './ExpulsionOverlay';
 import { ClientExercise, ClientPracticeQuestion, SubmitAnswer } from '../../types';
 
 export default function TestTaking() {
-  const { phase, testSessionId, currentSection, title, sections, setAnswer, answers, getAllAnswers, goToNextSection, completeTest, initTest, reset } = useTest();
+  const { phase, testSessionId, currentSection, title, sections, setAnswer, answers, getAllAnswers, goToNextSection, completeTest, initTest, reset, serverTime } = useTest();
   const navigate = useNavigate();
   const [submitting, setSubmitting] = useState(false);
   const submittingRef = useRef(false);
@@ -326,7 +326,7 @@ export default function TestTaking() {
               {isLast ? 'Tugatish' : 'Tashlab o\'tish'}
             </button>
 
-            <Timer deadline={currentSection.deadline} onExpire={submitSection} />
+            <Timer deadline={currentSection.deadline} onExpire={submitSection} serverTime={serverTime} />
           </div>
         </div>
       </div>

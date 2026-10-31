@@ -14,4 +14,8 @@ export const ENV = {
   CLIENT_URL: process.env.CLIENT_URL || 'http://localhost:5173',
   BCRYPT_ROUNDS: parseInt(process.env.BCRYPT_ROUNDS || '12', 10),
   NODE_ENV: process.env.NODE_ENV || 'development',
+  CARD_NUMBER: process.env.CARD_NUMBER || '4916 9902 5000 4410',
+  TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN || '',
+  TELEGRAM_CHAT_ID: process.env.TELEGRAM_CHAT_ID || '',
+  RAILWAY_COST_USD: parseFloat(process.env.RAILWAY_COST_USD || '5.20'),
 };

@@ -1,15 +1,24 @@
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
+import { PaymentWarningBanner, PaymentOverdueModal } from '../Admin/PaymentWarning';
 
 interface HeaderProps { onMenuToggle: () => void; }
 
 export default function Header({ onMenuToggle }: HeaderProps) {
   const { user } = useAuth();
   const { isDark, toggleTheme } = useTheme();
+  const isAdmin = user?.role === 'ADMIN';
 
   return (
-    <header className="sticky top-0 z-30 w-full bg-white/80 dark:bg-gray-950/80 backdrop-blur-md border-b border-gray-100 dark:border-gray-800/50">
-      <div className="px-4 sm:px-6 h-16 flex items-center justify-end gap-3">
+    <>
+      {/* Admin-only: overdue blocking modal */}
+      {isAdmin && <PaymentOverdueModal />}
+
+      <header className="sticky top-0 z-30 w-full bg-white/80 dark:bg-gray-950/80 backdrop-blur-md border-b border-gray-100 dark:border-gray-800/50">
+        {/* Admin-only: payment warning banner (≤2 days) */}
+        {isAdmin && <PaymentWarningBanner />}
+
+        <div className="px-4 sm:px-6 h-16 flex items-center justify-end gap-3">
 
         {/* Theme Toggle */}
         <button
@@ -53,5 +62,6 @@ export default function Header({ onMenuToggle }: HeaderProps) {
 
       </div>
     </header>
+    </>
   );
 }

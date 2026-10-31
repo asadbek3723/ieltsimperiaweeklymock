@@ -4,10 +4,13 @@ interface TimerProps {
   deadline: string;
   onExpire: () => void;
   label?: string;
+  /** ISO string returned by the server in the same response as `deadline`.
+   *  When provided the timer corrects for client/server clock drift. */
+  serverTime?: string | null;
 }
 
-export default function Timer({ deadline, onExpire, label = 'Time Remaining' }: TimerProps) {
-  const { display, isWarning, isCritical } = useTimer(deadline, onExpire);
+export default function Timer({ deadline, onExpire, label = 'Time Remaining', serverTime }: TimerProps) {
+  const { display, isWarning, isCritical } = useTimer(deadline, onExpire, serverTime);
 
   return (
     <div className={`flex items-center gap-2 font-bold transition-colors ${

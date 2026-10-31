@@ -109,6 +109,8 @@ export interface CurrentSection {
   sectionType: SectionType;
   sectionOrder: number;
   deadline: string;
+  /** ISO string of the server clock at the moment this section's deadline was set. */
+  serverTime?: string;
   timeAllocated?: number;
   exercises?: ClientExercise[];           // EXERCISE sections
   questions?: ClientPracticeQuestion[];   // PRACTICE_TEST sections
@@ -118,6 +120,9 @@ export interface CurrentSection {
 export interface JoinTestResponse {
   testSessionId: string;
   title: string;
+  /** ISO string of the server clock at the moment this response was generated.
+   *  Used to correct client-side timer drift. */
+  serverTime?: string;
   sections: SectionConfig[];
   currentSection: CurrentSection;
 }
@@ -172,4 +177,40 @@ export interface SubmitAnswer {
   questionType: SectionSubject;
   selectedAnswer: string;
   questionText: string;
+}
+
+export type PaymentStatus = 'PENDING' | 'CONFIRMED' | 'REJECTED';
+
+export interface PaymentRecord {
+  id: string;
+  amountUZS: number;
+  amountUSD: number;
+  exchangeRate: number;
+  receiptUrl: string;
+  receiptType: 'image' | 'pdf';
+  status: PaymentStatus;
+  periodStart: string;
+  periodEnd: string;
+  submittedAt: string;
+  confirmedAt?: string | null;
+  rejectedAt?: string | null;
+  rejectedReason?: string | null;
+}
+
+export interface PaymentStatusData {
+  daysLeft: number;
+  isOverdue: boolean;
+  nextDueDate: string;
+  cycleStartDate: string;
+  costUSD: number;
+  costUZS: number;
+  exchangeRate: number;
+  cardNumber: string;
+  pendingPayment?: {
+    id: string;
+    submittedAt: string;
+    amountUZS: number;
+    amountUSD: number;
+    receiptUrl: string;
+  } | null;
 }
