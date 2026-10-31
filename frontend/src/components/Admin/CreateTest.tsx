@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, type Variants } from 'framer-motion';
 import { adminApi } from '../../services/api';
 import { VARIANT_GROUPS, VARIANT_GROUP_LABELS, VariantGroup } from '../../types';
 
@@ -17,6 +17,227 @@ interface SectionForm {
 }
 
 interface Props { onSuccess: () => void; }
+
+// ─── Luxury PIN Success View ──────────────────────────────────────────────────
+interface PinSuccessViewProps {
+  pin: string;
+  testTitle?: string;
+  onSuccess: () => void;
+}
+
+function PinSuccessView({ pin, testTitle, onSuccess }: PinSuccessViewProps) {
+  const [copied, setCopied] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
+
+  const handleCopyPin = async () => {
+    try {
+      await navigator.clipboard.writeText(pin);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2200);
+    } catch {
+      // fallback
+    }
+  };
+
+  const handleCopyLink = async () => {
+    try {
+      const origin = window.location.origin;
+      const url = `${origin}/login?pin=${pin}`;
+      await navigator.clipboard.writeText(url);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2200);
+    } catch {
+      // fallback
+    }
+  };
+
+  const digits = (pin || '').split('');
+
+  const containerVariants: Variants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.08,
+        delayChildren: 0.12,
+      },
+    },
+  };
+
+  const digitVariants: Variants = {
+    hidden: { opacity: 0, y: 18, scale: 0.75 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      scale: 1,
+      transition: {
+        type: 'spring' as const,
+        stiffness: 380,
+        damping: 24,
+      },
+    },
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.96 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+      className="py-2 flex flex-col items-center gap-6"
+    >
+      {/* ── Top badge & Header ────────────────────────────────────────── */}
+      <div className="flex flex-col items-center text-center gap-3 relative w-full">
+        {/* Ambient background glow */}
+        <div className="absolute -top-12 left-1/2 -translate-x-1/2 w-48 h-48 rounded-full bg-emerald-500/15 dark:bg-emerald-500/20 blur-3xl pointer-events-none" />
+
+        {/* Celebratory Checkmark Icon */}
+        <motion.div
+          initial={{ scale: 0, rotate: -30 }}
+          animate={{ scale: 1, rotate: 0 }}
+          transition={{ type: 'spring', stiffness: 320, damping: 20, delay: 0.05 }}
+          className="relative flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-tr from-emerald-600 via-emerald-500 to-teal-400 text-white shadow-[0_14px_35px_-6px_rgba(16,185,129,0.5)] ring-4 ring-emerald-500/10"
+        >
+          <svg className="w-8 h-8 drop-shadow-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.8} d="M5 13l4 4L19 7" />
+          </svg>
+        </motion.div>
+
+        <div className="space-y-1">
+          <h3 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">
+            Test muvaffaqiyatli yaratildi
+          </h3>
+          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-sm">
+            Quyidagi maxsus PIN kodni o'quvchilarga ulashing
+          </p>
+        </div>
+      </div>
+
+      {/* ── The Centerpiece: Luxury Segmented PIN Display Card ─────────── */}
+      <div className="relative w-full overflow-hidden rounded-3xl p-6 sm:p-7 bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 text-white shadow-[0_24px_60px_-15px_rgba(0,0,0,0.45),0_0_0_1px_rgba(255,255,255,0.08)]">
+        {/* Ambient colored depth glows inside the card */}
+        <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-80 h-36 bg-gradient-to-r from-blue-600/20 via-indigo-600/20 to-purple-600/20 blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-16 left-1/2 -translate-x-1/2 w-64 h-24 bg-emerald-500/15 blur-2xl pointer-events-none" />
+
+        <div className="relative z-10 flex flex-col items-center gap-4">
+          {/* Header pill with test title */}
+          <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 ring-1 ring-white/10 text-[11px] font-semibold text-slate-300">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="truncate max-w-[200px]">{testTitle || "Faol test"}</span>
+            <span className="text-slate-500">·</span>
+            <span className="text-slate-400 font-mono tracking-wider">PIN KOD</span>
+          </div>
+
+          {/* Staggered animated large digits */}
+          <motion.div
+            variants={containerVariants}
+            initial="hidden"
+            animate="visible"
+            className="flex items-center justify-center gap-2.5 sm:gap-4 my-2 w-full"
+            onClick={handleCopyPin}
+          >
+            {digits.map((digit, i) => (
+              <motion.div
+                key={i}
+                variants={digitVariants}
+                whileHover={{ y: -5, scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                transition={{ type: 'spring', stiffness: 420, damping: 25 }}
+                className="relative flex items-center justify-center w-16 h-22 sm:w-20 sm:h-26 rounded-2xl bg-gradient-to-b from-slate-800/90 to-slate-900 text-white shadow-[0_14px_30px_-6px_rgba(0,0,0,0.6),inset_0_1px_1px_rgba(255,255,255,0.2)] ring-1 ring-white/10 select-all cursor-pointer group"
+                title="Nusxa olish uchun bosing"
+              >
+                {/* Subtle top gloss highlight */}
+                <div className="absolute inset-x-3 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/30 to-transparent pointer-events-none" />
+
+                <span className="font-mono text-5xl sm:text-6xl font-black tracking-tight text-white drop-shadow-[0_4px_16px_rgba(255,255,255,0.25)] group-hover:text-indigo-200 transition-colors">
+                  {digit}
+                </span>
+              </motion.div>
+            ))}
+          </motion.div>
+
+          {/* Micro-interaction hint */}
+          <p className="text-[11px] text-slate-400 font-medium">
+            Nusxa olish uchun kod ustiga bosing
+          </p>
+        </div>
+      </div>
+
+      {/* ── Action Buttons ─────────────────────────────────────────────── */}
+      <div className="flex flex-col gap-3 w-full">
+        {/* Copy actions row */}
+        <div className="flex items-center gap-2.5 w-full">
+          {/* Copy PIN button */}
+          <button
+            type="button"
+            onClick={handleCopyPin}
+            className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-bold text-xs transition-all duration-200 active:scale-[0.98] ${
+              copied
+                ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 ring-1 ring-emerald-500/30 shadow-sm'
+                : 'bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800/80 dark:hover:bg-slate-700/80 text-slate-700 dark:text-slate-200 ring-1 ring-slate-200/60 dark:ring-slate-700/60'
+            }`}
+          >
+            {copied ? (
+              <>
+                <svg className="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                </svg>
+                <span>PIN nusxalandi!</span>
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <rect x="9" y="9" width="13" height="13" rx="2" strokeWidth={2} />
+                  <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" strokeWidth={2} />
+                </svg>
+                <span>PIN koddan nusxa olish</span>
+              </>
+            )}
+          </button>
+
+          {/* Copy link button */}
+          <button
+            type="button"
+            onClick={handleCopyLink}
+            className={`flex items-center justify-center gap-1.5 py-3 px-4 rounded-xl font-bold text-xs transition-all duration-200 active:scale-[0.98] ${
+              linkCopied
+                ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 ring-1 ring-emerald-500/30 shadow-sm'
+                : 'bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800/80 dark:hover:bg-slate-700/80 text-slate-700 dark:text-slate-200 ring-1 ring-slate-200/60 dark:ring-slate-700/60'
+            }`}
+            title="O'quvchi kirish havolasini nusxalash"
+          >
+            {linkCopied ? (
+              <>
+                <svg className="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                </svg>
+                <span>Havola olindi!</span>
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                </svg>
+                <span>Havola</span>
+              </>
+            )}
+          </button>
+        </div>
+
+        {/* Primary Tayyor button */}
+        <button
+          type="button"
+          onClick={onSuccess}
+          className="w-full py-3.5 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 hover:from-blue-500 hover:via-indigo-500 hover:to-violet-500 active:scale-[0.98] text-white font-bold text-sm tracking-wide shadow-[0_8px_24px_-4px_rgba(79,70,229,0.45)] hover:shadow-[0_12px_28px_-4px_rgba(79,70,229,0.6)] transition-all duration-200 flex items-center justify-center gap-2"
+        >
+          <span>Tayyor</span>
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
+      </div>
+    </motion.div>
+  );
+}
 
 export default function CreateTest({ onSuccess }: Props) {
   const [title, setTitle] = useState('');
@@ -111,34 +332,11 @@ export default function CreateTest({ onSuccess }: Props) {
   // ── PIN success screen ────────────────────────────────────────────────────
   if (createdPin) {
     return (
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="py-6 flex flex-col items-center gap-8"
-      >
-        <div className="w-14 h-14 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-          <svg className="w-7 h-7 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-          </svg>
-        </div>
-
-        <div className="text-center space-y-1">
-          <p className="text-base font-semibold text-gray-900 dark:text-white">Test muvaffaqiyatli yaratildi</p>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Quyidagi PIN kodni o'quvchilarga yuboring</p>
-        </div>
-
-        <div className="w-full bg-gray-50 dark:bg-gray-800 rounded-2xl py-8 flex flex-col items-center gap-2 border border-gray-200 dark:border-gray-700">
-          <p className="text-5xl font-mono font-black tracking-[0.3em] text-gray-900 dark:text-white">{createdPin}</p>
-          <span className="text-xs text-gray-400 dark:text-gray-500 mt-1">PIN kodi</span>
-        </div>
-
-        <button
-          onClick={onSuccess}
-          className="w-full py-3 rounded-xl bg-gray-900 dark:bg-white text-white dark:text-gray-900 font-semibold text-sm transition-opacity hover:opacity-90"
-        >
-          Tayyor
-        </button>
-      </motion.div>
+      <PinSuccessView
+        pin={createdPin}
+        testTitle={title}
+        onSuccess={onSuccess}
+      />
     );
   }
 
