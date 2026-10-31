@@ -1,6 +1,6 @@
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
-import { PaymentWarningBanner, PaymentOverdueModal } from '../Admin/PaymentWarning';
+import { PaymentFloatingAlert } from '../Admin/PaymentWarning';
 
 interface HeaderProps { onMenuToggle: () => void; }
 
@@ -11,13 +11,10 @@ export default function Header({ onMenuToggle }: HeaderProps) {
 
   return (
     <>
-      {/* Admin-only: overdue blocking modal */}
-      {isAdmin && <PaymentOverdueModal />}
+      {/* Admin-only: subtle floating alert (≤2 days or overdue, reappears every 10s if closed) */}
+      {isAdmin && <PaymentFloatingAlert />}
 
       <header className="sticky top-0 z-30 w-full bg-white/80 dark:bg-gray-950/80 backdrop-blur-md border-b border-gray-100 dark:border-gray-800/50">
-        {/* Admin-only: payment warning banner (≤2 days) */}
-        {isAdmin && <PaymentWarningBanner />}
-
         <div className="px-4 sm:px-6 h-16 flex items-center justify-end gap-3">
 
         {/* Theme Toggle */}

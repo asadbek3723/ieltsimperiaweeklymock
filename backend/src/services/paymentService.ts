@@ -226,6 +226,8 @@ export async function confirmPayment(recordId: string) {
     }),
   ]);
 
+  cache.invalidate('payment:status');
+
   if (record.telegramMsgId) {
     const formattedDue = new Intl.DateTimeFormat('uz-UZ', {
       day: '2-digit',
@@ -266,6 +268,8 @@ export async function rejectPayment(recordId: string, reason?: string) {
       rejectedReason: reason || 'Admin tomonidan rad etildi',
     },
   });
+
+  cache.invalidate('payment:status');
 
   if (record.telegramMsgId) {
     await editPaymentMessage(
