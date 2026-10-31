@@ -115,6 +115,10 @@ export async function updateDueDate(action: 'add' | 'remove' | 'setdate' | 'add3
 }
 
 export async function getPaymentHistory(page = 1, limit = 20) {
+  const cacheKey = `payment:history:${page}:${limit}`;
+  const cached = cache.get<any>(cacheKey);
+  if (cached) return cached;
+
   const skip = Math.max(0, (page - 1) * limit);
   const [records, total] = await Promise.all([
     prisma.paymentRecord.findMany({
@@ -125,12 +129,15 @@ export async function getPaymentHistory(page = 1, limit = 20) {
     prisma.paymentRecord.count(),
   ]);
 
-  return {
+  const result = {
     records,
     total,
     page,
     totalPages: Math.ceil(total / limit),
   };
+
+  cache.set(cacheKey, result, 30); // 30s cache
+  return result;
 }
 
 export async function submitPayment(params: {

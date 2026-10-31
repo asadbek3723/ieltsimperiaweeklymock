@@ -166,12 +166,32 @@ function AnimatedNumber({ value, format }: { value: number; format: (n: number) 
 export default function Payment() {
   const { status: sharedStatus } = usePaymentStatus();
 
-  // Use shared status (already loaded by Sidebar/Header) so there is 0ms delay!
-  const [statusData, setStatusData] = useState<PaymentStatusData | null>(sharedStatus);
+  // Load from localStorage or shared cache or default, NEVER null so it renders in 0ms!
+  const [statusData, setStatusData] = useState<PaymentStatusData>(() => {
+    if (sharedStatus) return sharedStatus;
+    try {
+      const saved = localStorage.getItem('last_payment_status');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return {
+      daysLeft: 1,
+      isOverdue: false,
+      nextDueDate: new Date().toISOString(),
+      cycleStartDate: new Date().toISOString(),
+      costUSD: 5.20,
+      costUZS: 62500,
+      exchangeRate: 12023,
+      cardNumber: '4916 9902 5000 4410',
+      pendingPayment: null,
+    };
+  });
 
   useEffect(() => {
     if (sharedStatus) {
       setStatusData(sharedStatus);
+      try {
+        localStorage.setItem('last_payment_status', JSON.stringify(sharedStatus));
+      } catch {}
     }
   }, [sharedStatus]);
   const [history, setHistory]           = useState<PaymentRecord[]>([]);
@@ -193,8 +213,15 @@ export default function Payment() {
 
   // ── Data fetching ────────────────────────────────────────────────────────
   const fetchStatus = useCallback(async () => {
-    const res = await adminApi.getPaymentStatus();
-    if (res.data.success) setStatusData(res.data.data);
+    try {
+      const res = await adminApi.getPaymentStatus();
+      if (res.data.success) {
+        setStatusData(res.data.data);
+        try {
+          localStorage.setItem('last_payment_status', JSON.stringify(res.data.data));
+        } catch {}
+      }
+    } catch {}
   }, []);
 
   const fetchHistory = useCallback(async (p = 1) => {
@@ -283,22 +310,7 @@ export default function Payment() {
     ok:       { ring: 'ring-slate-200/60 dark:ring-slate-700/40', glow: '#10b981', label: `${daysLeft} kun qoldi`, labelColor: 'text-emerald-500', bg: 'from-slate-50/80 to-white/40 dark:from-slate-800/60 dark:to-slate-900/40' },
   }[urgency];
 
-  // ── Skeleton loader ───────────────────────────────────────────────────────
-  if (!statusData) {
-    return (
-      <div className="w-full space-y-6">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {[1,2,3].map(i => <Skeleton key={i} className="h-32" />)}
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Skeleton className="h-72" />
-          <Skeleton className="h-72" />
-        </div>
-        <Skeleton className="h-64" />
-      </div>
-    );
-  }
-
+  // ── Render immediately ──────────────────────────────────────────────────
   return (
     <>
       {/* Global keyframes */}
