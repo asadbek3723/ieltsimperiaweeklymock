@@ -131,10 +131,15 @@ export async function answerCallbackQuery(callbackQueryId: string, text: string,
   });
 }
 
-// ─── Send plain message to admin chat ────────────────────────────────────────
-export async function sendMessage(text: string): Promise<void> {
+// ─── Send plain message to chat ───────────────────────────────────────────────
+export async function sendMessage(text: string, chatId?: string | number): Promise<void> {
+  const targetChatId = chatId || ENV.TELEGRAM_CHAT_ID;
+  if (!targetChatId) {
+    console.warn('[Telegram] No target chatId for sendMessage');
+    return;
+  }
   await telegramRequest('sendMessage', {
-    chat_id: ENV.TELEGRAM_CHAT_ID,
+    chat_id: targetChatId,
     text,
     parse_mode: 'Markdown',
   });
@@ -153,11 +158,13 @@ const HELP_TEXT = `
 
 *Misol:*
 \`/add 15\` → 15 kun qo'shadi
-\`/setdate 2025-01-31\` → To'lov muddatini shu sanaga belgilaydi
+\`/setdate 2026-12-01\` → To'lov muddatini shu sanaga belgilaydi
 `.trim();
 
-export async function handleBotCommand(text: string): Promise<void> {
+export async function handleBotCommand(text: string, replyChatId?: string | number): Promise<void> {
   if (!text || !text.startsWith('/')) return;
+
+  const targetChatId = replyChatId || ENV.TELEGRAM_CHAT_ID;
 
   // Lazy import to avoid circular dependency
   const { updateDueDate, getPaymentStatus } = await import('./paymentService');
@@ -167,8 +174,9 @@ export async function handleBotCommand(text: string): Promise<void> {
 
   try {
     switch (cmd) {
+      case '/start':
       case '/help': {
-        await sendMessage(HELP_TEXT);
+        await sendMessage(HELP_TEXT, targetChatId);
         break;
       }
 
@@ -178,11 +186,12 @@ export async function handleBotCommand(text: string): Promise<void> {
         const dueStr = new Intl.DateTimeFormat('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(status.nextDueDate));
         await sendMessage(
           `${flag} *Server To'lov Holati*\n\n` +
-          `⏳ *Qolgan kun:* ${status.daysLeft <= 0 ? `0 (muddati o'tgan!)` : status.daysLeft + ' kun'}\n` +
+          `⏳ *Qolgan muddat:* ${status.daysLeft <= 0 ? `0 kun (muddati o'tgan!)` : status.daysLeft + ' kun'}\n` +
           `📅 *To'lov muddati:* ${dueStr}\n` +
-          `💵 *Narxi:* $${status.costUSD.toFixed(2)} ≈ ${Math.round(status.costUZS).toLocaleString()} so'm\n` +
-          `📊 *CBU kursi:* ${Math.round(status.exchangeRate).toLocaleString()} UZS/USD\n` +
-          `${status.pendingPayment ? '⏳ Kutilayotgan to\'lov bor!' : '✅ Kutilayotgan to\'lov yo\'q'}`
+          `💵 *Oylik narx:* $${status.costUSD.toFixed(2)} ≈ ${Math.round(status.costUZS).toLocaleString()} so'm\n` +
+          `📊 *CBU kursi:* ${Math.round(status.exchangeRate).toLocaleString()} UZS / 1 USD\n` +
+          `${status.pendingPayment ? '⚠️ *Kutilayotgan to\'lov cheki bor!*' : '✅ Kutilayotgan to\'lov yo\'q'}`,
+          targetChatId
         );
         break;
       }
@@ -190,52 +199,52 @@ export async function handleBotCommand(text: string): Promise<void> {
       case '/add30': {
         const { newDate, daysLeft } = await updateDueDate('add30');
         const dueStr = new Intl.DateTimeFormat('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(newDate);
-        await sendMessage(`✅ *30 kun qo'shildi!*\n\n📅 Yangi muddat: *${dueStr}*\n⏳ Qolgan kun: *${daysLeft}*`);
+        await sendMessage(`✅ *30 kun qo'shildi!*\n\n📅 Yangi to'lov muddati: *${dueStr}*\n⏳ Qolgan kun: *${daysLeft} kun*`, targetChatId);
         break;
       }
 
       case '/add': {
         const days = parseInt(parts[1] || '', 10);
         if (isNaN(days) || days <= 0) {
-          await sendMessage('⚠️ Noto\'g\'ri buyruq. Misol: `/add 7`');
+          await sendMessage('⚠️ Noto\'g\'ri buyruq. Misol: `/add 7`', targetChatId);
           break;
         }
         const { newDate, daysLeft } = await updateDueDate('add', days);
         const dueStr = new Intl.DateTimeFormat('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(newDate);
-        await sendMessage(`✅ *${days} kun qo'shildi!*\n\n📅 Yangi muddat: *${dueStr}*\n⏳ Qolgan kun: *${daysLeft}*`);
+        await sendMessage(`✅ *${days} kun qo'shildi!*\n\n📅 Yangi to'lov muddati: *${dueStr}*\n⏳ Qolgan kun: *${daysLeft} kun*`, targetChatId);
         break;
       }
 
       case '/remove': {
         const days = parseInt(parts[1] || '', 10);
         if (isNaN(days) || days <= 0) {
-          await sendMessage('⚠️ Noto\'g\'ri buyruq. Misol: `/remove 5`');
+          await sendMessage('⚠️ Noto\'g\'ri buyruq. Misol: `/remove 5`', targetChatId);
           break;
         }
         const { newDate, daysLeft } = await updateDueDate('remove', days);
         const dueStr = new Intl.DateTimeFormat('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(newDate);
-        await sendMessage(`✅ *${days} kun ayirildi!*\n\n📅 Yangi muddat: *${dueStr}*\n⏳ Qolgan kun: *${daysLeft}*`);
+        await sendMessage(`✅ *${days} kun ayirildi!*\n\n📅 Yangi to'lov muddati: *${dueStr}*\n⏳ Qolgan kun: *${daysLeft} kun*`, targetChatId);
         break;
       }
 
       case '/setdate': {
         const dateStr = parts[1];
         if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-          await sendMessage('⚠️ Noto\'g\'ri format. Misol: `/setdate 2024-12-31`');
+          await sendMessage('⚠️ Noto\'g\'ri format. Misol: `/setdate 2026-12-01`', targetChatId);
           break;
         }
         const { newDate, daysLeft } = await updateDueDate('setdate', dateStr);
         const dueStr = new Intl.DateTimeFormat('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(newDate);
-        await sendMessage(`✅ *Muddat belgilandi!*\n\n📅 Yangi muddat: *${dueStr}*\n⏳ Qolgan kun: *${daysLeft}*`);
+        await sendMessage(`✅ *To'lov muddati belgilandi!*\n\n📅 Yangi muddat: *${dueStr}*\n⏳ Qolgan kun: *${daysLeft} kun*`, targetChatId);
         break;
       }
 
       default: {
-        await sendMessage(`❓ Noma'lum buyruq: \`${cmd}\`\n\n${HELP_TEXT}`);
+        await sendMessage(`❓ Noma'lum buyruq: \`${cmd}\`\n\n${HELP_TEXT}`, targetChatId);
       }
     }
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Xatolik yuz berdi';
-    await sendMessage(`❌ *Xatolik:* ${msg}`);
+    await sendMessage(`❌ *Xatolik:* ${msg}`, targetChatId);
   }
 }

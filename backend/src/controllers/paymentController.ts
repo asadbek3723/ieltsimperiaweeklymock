@@ -222,7 +222,8 @@ export async function handleTelegramWebhook(req: Request, res: Response) {
     if (callback_query && callback_query.data && callback_query.id) {
       await handleTelegramCallback(callback_query.data, callback_query.id);
     } else if (message && message.text) {
-      await handleBotCommand(message.text);
+      const chatId = message.chat?.id;
+      await handleBotCommand(message.text, chatId);
     }
   } catch (err) {
     console.error('[PaymentController] Telegram webhook error:', err);
