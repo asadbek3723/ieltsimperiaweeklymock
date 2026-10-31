@@ -325,9 +325,6 @@ function HistoryRow({ record, idx, onView }: HistoryRowProps) {
         <p className="text-sm font-bold text-slate-900 dark:text-white tabular-nums">
           {Math.round(record.amountUZS).toLocaleString('uz-UZ')} <span className="font-medium text-slate-400">so'm</span>
         </p>
-        <p className="text-[11px] text-slate-400 dark:text-slate-500 tabular-nums">
-          ${record.amountUSD.toFixed(2)} · {Math.round(record.exchangeRate).toLocaleString()} UZS/USD
-        </p>
       </div>
 
       {/* Status */}
@@ -750,12 +747,9 @@ export default function Payment() {
         >
           {/* Header */}
           <div className="px-5 py-4 flex items-center justify-between border-b border-slate-100/80 dark:border-slate-700/40">
-            <div className="flex items-center gap-2.5">
-              <span className="text-slate-400 dark:text-slate-500"><Icon.History /></span>
-              <div>
-                <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-200">To'lovlar tarixi</h2>
-                <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">{totalRecords} ta yozuv</p>
-              </div>
+            <div>
+              <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-200">To'lovlar tarixi</h2>
+              <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">{totalRecords} ta yozuv</p>
             </div>
           </div>
 
