@@ -1,10 +1,10 @@
 import { useEffect, useState, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { adminApi } from '../../services/api';
 import { PaymentStatusData } from '../../types';
 
 let cachedStatus: { data: PaymentStatusData; fetchedAt: number } | null = null;
-const CACHE_TTL_MS = 60 * 1000; // 1 min
+const CACHE_TTL_MS = 20 * 1000; // 20s cache so status stays fast & updated
 
 export function usePaymentStatus() {
   const [status, setStatus] = useState<PaymentStatusData | null>(
@@ -42,51 +42,63 @@ export function usePaymentStatus() {
 }
 
 /**
- * Professional, discrete floating alert for Admin:
- * - When expired (isOverdue): Larger, prominent red warning banner.
- *   If closed via 'x', reappears after exactly 5 seconds!
- * - When pre-expiry warning (daysLeft <= 2): Slim, low-height, compact warning pill.
- *   If closed via 'x', reappears after 10 seconds.
+ * Premium, borderless floating alert for Admin:
+ * - Hidden entirely when already on /admin/payment!
+ * - When expired (isOverdue): Prominent red warning banner with subtle glow and depth.
+ *   If closed via 'x', reappears after 5 seconds to guarantee critical awareness.
+ * - When pre-expiry warning (daysLeft <= 2): Slim, low-height compact warning pill.
+ *   If closed via 'x', reappears after 15 seconds.
  */
 export function PaymentFloatingAlert() {
+  const location = useLocation();
   const { status } = usePaymentStatus();
   const [visible, setVisible] = useState(true);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Clean cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
+
+  // NEVER show alert if already on the payment page!
+  if (location.pathname === '/admin/payment') return null;
+
   if (!status) return null;
-  // If payment is already pending verification, don't scream with warning
+  // If payment is already pending verification, don't show overdue/warning
   if (status.pendingPayment) return null;
 
   const isOverdue = status.isOverdue || status.daysLeft <= 0;
   const isCritical = status.daysLeft <= 2 || isOverdue;
   if (!isCritical || !visible) return null;
 
-  // When expired: reappears in 5 seconds; when warning: reappears in 10 seconds
+  // When expired: reappears in 5 seconds; when pre-warning: reappears in 15 seconds
   const handleDismiss = () => {
     setVisible(false);
     if (timerRef.current) clearTimeout(timerRef.current);
-    const delay = isOverdue ? 5000 : 10000;
+    const delay = isOverdue ? 5000 : 15000;
     timerRef.current = setTimeout(() => {
       setVisible(true);
     }, delay);
   };
 
-  // ── CASE 1: EXPIRED / OVERDUE (Kattaroq, to'xtamasdan ogohlantirib turuvchi) ──
+  // ── CASE 1: EXPIRED / OVERDUE ───────────────────────────────────────────────
   if (isOverdue) {
     return (
       <aside
         aria-label="Server to'lovi muddati tugadi"
-        className="fixed bottom-5 right-5 z-50 max-w-md w-[calc(100vw-2.5rem)] animate-in fade-in slide-in-from-bottom-4 duration-300 pointer-events-auto"
+        className="fixed bottom-5 right-5 z-50 max-w-sm w-[calc(100vw-2.5rem)] animate-in fade-in slide-in-from-bottom-4 duration-300 pointer-events-auto"
       >
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-b from-slate-900 to-slate-950 p-5 text-white shadow-[0_20px_50px_-8px_rgba(239,68,68,0.35)] ring-1 ring-red-500/30">
-          {/* Intense red glow backdrop */}
-          <div className="absolute -top-12 -right-12 w-36 h-36 rounded-full bg-red-600/30 blur-3xl pointer-events-none" />
-          <div className="absolute -bottom-10 -left-10 w-28 h-28 rounded-full bg-rose-600/20 blur-2xl pointer-events-none" />
+        <div className="relative overflow-hidden rounded-2xl bg-slate-900/95 dark:bg-slate-950/95 p-4 text-white shadow-[0_24px_50px_-12px_rgba(239,68,68,0.4),0_0_0_1px_rgba(239,68,68,0.25)] backdrop-blur-xl">
+          {/* Subtle ambient red glow */}
+          <div className="absolute -top-12 -right-12 w-32 h-32 rounded-full bg-red-600/25 blur-3xl pointer-events-none" />
+          <div className="absolute -bottom-8 -left-8 w-24 h-24 rounded-full bg-rose-600/15 blur-2xl pointer-events-none" />
 
-          <div className="flex items-start gap-3.5 relative z-10">
-            {/* Animated pulse red icon */}
-            <div className="mt-0.5 relative flex items-center justify-center shrink-0 w-8 h-8 rounded-xl bg-red-500/20 text-red-400">
-              <span className="animate-ping absolute inline-flex h-4 w-4 rounded-full bg-red-400 opacity-60" />
+          <div className="flex items-start gap-3 relative z-10">
+            {/* Animated alert icon */}
+            <div className="mt-0.5 relative flex items-center justify-center shrink-0 w-8 h-8 rounded-xl bg-red-500/15 text-red-400">
+              <span className="animate-ping absolute inline-flex h-3.5 w-3.5 rounded-full bg-red-400 opacity-60" />
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
                 <line x1="12" y1="9" x2="12" y2="13" />
@@ -96,38 +108,35 @@ export function PaymentFloatingAlert() {
 
             <div className="flex-1 min-w-0 pr-1">
               <div className="flex items-center gap-2">
-                <p className="text-sm font-bold text-white tracking-tight">
+                <p className="text-xs font-bold text-white tracking-tight">
                   Server to'lovi muddati tugadi!
                 </p>
-                <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-red-500/30 text-red-300 ring-1 ring-red-500/40">
-                  Muddati o'tgan
+                <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-red-500/25 text-red-300">
+                  Tugagan
                 </span>
               </div>
-              <p className="text-xs text-slate-300 mt-1.5 leading-relaxed">
-                Platforma xizmati istalgan daqiqada to'xtab qolishi mumkin. O'quvchilar test topshira olmay qolmasligi uchun darhol to'lov qiling.
+              <p className="text-[11px] text-slate-300 mt-1 leading-relaxed">
+                Platforma uzluksiz ishlashi uchun to'lovni amalga oshiring.
               </p>
 
-              <div className="mt-3.5 flex items-center gap-3">
+              <div className="mt-3 flex items-center">
                 <Link
                   to="/admin/payment"
-                  className="text-xs font-bold px-4 py-2 rounded-xl bg-red-500 hover:bg-red-400 text-white shadow-[0_4px_16px_-4px_rgba(239,68,68,0.6)] active:scale-95 transition-all"
+                  className="text-xs font-bold px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white shadow-[0_4px_14px_-3px_rgba(239,68,68,0.5)] active:scale-95 transition-all"
                 >
                   To'lov sahifasiga o'tish
                 </Link>
-                <span className="text-[10px] text-slate-400">
-                  X bossangiz, 5s dan so'ng yana chiqadi
-                </span>
               </div>
             </div>
 
-            {/* Close button (x) -> Reappears after 5 seconds */}
+            {/* Close button (x) */}
             <button
               onClick={handleDismiss}
               className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors shrink-0"
-              title="Yopish (5 soniyadan so'ng yana eslatiladi)"
+              title="Yopish"
               aria-label="Yopish"
             >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="18" y1="6" x2="6" y2="18" />
                 <line x1="6" y1="6" x2="18" y2="18" />
               </svg>
@@ -144,7 +153,7 @@ export function PaymentFloatingAlert() {
       aria-label="To'lov bildirishnomasi"
       className="fixed bottom-5 right-5 z-50 max-w-xs w-[calc(100vw-2.5rem)] animate-in fade-in slide-in-from-bottom-3 duration-200 pointer-events-auto"
     >
-      <div className="relative overflow-hidden rounded-xl bg-slate-900/90 dark:bg-slate-950/90 backdrop-blur-md px-3.5 py-2.5 text-white shadow-[0_8px_24px_-4px_rgba(0,0,0,0.35)] ring-1 ring-amber-500/20">
+      <div className="relative overflow-hidden rounded-xl bg-slate-900/95 dark:bg-slate-950/95 backdrop-blur-md px-3.5 py-2.5 text-white shadow-[0_12px_32px_-6px_rgba(0,0,0,0.4),0_0_0_1px_rgba(245,158,11,0.25)]">
         {/* Subtle amber glow */}
         <div className="absolute -top-8 -right-8 w-20 h-20 rounded-full bg-amber-500/20 blur-xl pointer-events-none" />
 
@@ -163,16 +172,16 @@ export function PaymentFloatingAlert() {
 
           <Link
             to="/admin/payment"
-            className="text-[10px] font-bold px-2.5 py-1 rounded-md bg-amber-500 hover:bg-amber-400 text-slate-950 shrink-0 transition-colors"
+            className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 shrink-0 transition-colors shadow-sm"
           >
             To'lash
           </Link>
 
-          {/* Close button (x) -> Reappears after 10 seconds */}
+          {/* Close button (x) */}
           <button
             onClick={handleDismiss}
             className="p-1 rounded-md text-slate-400 hover:text-white hover:bg-white/10 transition-colors shrink-0"
-            title="Yopish (10 soniyadan so'ng yana eslatiladi)"
+            title="Yopish"
             aria-label="Yopish"
           >
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">

@@ -124,10 +124,20 @@ export async function handleSubmitReceipt(req: Request, res: Response) {
       const isImage = req.file.mimetype.startsWith('image/');
       const receiptType = isImage ? 'image' : 'pdf';
       const filename = path.basename(req.file.path);
-      const relativeUrl = `/api/admin/payment/receipt/${filename}`;
+
+      // Permanently store image as Base64 in PostgreSQL so it never gets lost on Render/Railway redeployments!
+      let receiptDataUrl = `/api/admin/payment/receipt/${filename}`;
+      try {
+        const fileBuffer = fs.readFileSync(req.file.path);
+        if (fileBuffer.length <= 6 * 1024 * 1024) {
+          receiptDataUrl = `data:${req.file.mimetype};base64,${fileBuffer.toString('base64')}`;
+        }
+      } catch (readErr) {
+        console.warn('[PaymentController] Could not convert to base64, using relative URL:', readErr);
+      }
 
       const record = await submitPayment({
-        receiptUrl: relativeUrl,
+        receiptUrl: receiptDataUrl,
         receiptType,
         filename,
         filePath: req.file.path,

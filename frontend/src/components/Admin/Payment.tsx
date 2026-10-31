@@ -8,12 +8,12 @@ import { usePaymentStatus } from './PaymentWarning';
  *  to a full URL pointing at the backend origin. */
 const resolveReceiptUrl = (path: string): string => {
   if (!path) return '';
-  if (path.startsWith('http://') || path.startsWith('https://')) return path;
+  if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('data:')) return path;
   return `${backendOrigin}${path.startsWith('/') ? path : `/${path}`}`;
 };
 
 const isImageUrl = (url: string) =>
-  /\.(jpg|jpeg|png|webp|gif|bmp|svg)(\?.*)?$/i.test(url);
+  url.startsWith('data:image') || /\.(jpg|jpeg|png|webp|gif|bmp|svg)(\?.*)?$/i.test(url);
 
 // ─── Global keyframes ─────────────────────────────────────────────────────────
 const STYLES = `
@@ -193,6 +193,11 @@ interface ReceiptModalProps {
 }
 function ReceiptModal({ url, onClose }: ReceiptModalProps) {
   const isImage = isImageUrl(url);
+  const [imgError, setImgError] = useState(false);
+
+  useEffect(() => {
+    setImgError(false);
+  }, [url]);
 
   // Close on Escape key
   useEffect(() => {
@@ -226,7 +231,7 @@ function ReceiptModal({ url, onClose }: ReceiptModalProps) {
           <div className="flex items-center gap-2">
             <a
               href={url}
-              download
+              download="payment-receipt"
               target="_blank"
               rel="noreferrer"
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white/80 text-xs font-semibold transition-colors"
@@ -244,17 +249,29 @@ function ReceiptModal({ url, onClose }: ReceiptModalProps) {
 
         {/* Body */}
         <div className="flex-1 overflow-auto flex items-center justify-center p-4 min-h-[300px] bg-[#0d1117]">
-          {isImage ? (
+          {isImage && !imgError ? (
             <img
               src={url}
               alt="To'lov cheki"
               className="max-w-full max-h-[70vh] object-contain rounded-xl shadow-2xl"
-              onError={e => {
-                (e.currentTarget as HTMLImageElement).style.display = 'none';
-                const el = document.getElementById('receipt-fallback');
-                if (el) el.style.display = 'flex';
-              }}
+              onError={() => setImgError(true)}
             />
+          ) : isImage && imgError ? (
+            <div className="flex flex-col items-center gap-3 text-center p-8">
+              <div className="w-12 h-12 rounded-xl bg-red-500/10 text-red-400 flex items-center justify-center mb-1">
+                <Icon.AlertTriangle />
+              </div>
+              <p className="text-sm text-white/70 font-medium">Rasm yuklanmadi</p>
+              <p className="text-xs text-white/40 max-w-xs">Chek server qayta ishga tushgunga qadar yuklangan bo'lishi mumkin</p>
+              <a
+                href={url}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-2 text-indigo-400 text-xs underline"
+              >
+                To'g'ridan-to'g'ri ochish
+              </a>
+            </div>
           ) : (
             <div className="flex flex-col items-center gap-4 text-center p-8">
               <div className="w-16 h-16 rounded-2xl bg-white/10 flex items-center justify-center text-white/60">
@@ -266,7 +283,7 @@ function ReceiptModal({ url, onClose }: ReceiptModalProps) {
               </div>
               <a
                 href={url}
-                download
+                download="receipt.pdf"
                 target="_blank"
                 rel="noreferrer"
                 className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold transition-colors"
@@ -275,22 +292,6 @@ function ReceiptModal({ url, onClose }: ReceiptModalProps) {
               </a>
             </div>
           )}
-          {/* Fallback for broken images */}
-          <div
-            id="receipt-fallback"
-            style={{ display: 'none' }}
-            className="flex flex-col items-center gap-3 text-center p-8"
-          >
-            <p className="text-sm text-white/60">Rasm yuklanmadi</p>
-            <a
-              href={url}
-              target="_blank"
-              rel="noreferrer"
-              className="text-indigo-400 text-xs underline"
-            >
-              To'g'ridan-to'g'ri ochish
-            </a>
-          </div>
         </div>
       </div>
     </div>
@@ -318,7 +319,7 @@ function HistoryRow({ record, idx, onView }: HistoryRowProps) {
 
   return (
     <div
-      className="grid grid-cols-1 sm:grid-cols-[minmax(90px,auto)_1fr_auto_auto_auto] gap-x-5 gap-y-1 px-5 py-4 items-center hover:bg-slate-50/50 dark:hover:bg-slate-700/20 transition-colors anim-fadein border-b border-slate-100/60 dark:border-slate-700/30 last:border-0"
+      className="grid grid-cols-1 sm:grid-cols-[110px_1fr_130px_110px_90px] gap-x-4 gap-y-1 px-5 py-3.5 items-center hover:bg-slate-50/50 dark:hover:bg-slate-700/20 transition-colors anim-fadein border-b border-slate-100/60 dark:border-slate-700/30 last:border-0"
       style={{ animationDelay: `${idx * 40}ms` }}
     >
       {/* Date */}
@@ -792,7 +793,7 @@ export default function Payment() {
 
           {/* Column headers */}
           {!historyLoading && history.length > 0 && (
-            <div className="hidden sm:grid grid-cols-[minmax(90px,auto)_1fr_auto_auto_auto] gap-x-5 px-5 py-3 bg-slate-50/60 dark:bg-slate-900/30 border-b border-slate-100/60 dark:border-slate-700/30">
+            <div className="hidden sm:grid grid-cols-[110px_1fr_130px_110px_90px] gap-x-4 px-5 py-3 bg-slate-50/60 dark:bg-slate-900/30 border-b border-slate-100/60 dark:border-slate-700/30">
               {['Sana & Vaqt', 'ID', 'Holat', "Ko'rildi", 'Chek'].map(h => (
                 <span key={h} className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">{h}</span>
               ))}

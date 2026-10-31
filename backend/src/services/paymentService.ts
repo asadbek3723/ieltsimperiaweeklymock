@@ -18,18 +18,7 @@ export async function checkAndNotifyExpiry(): Promise<void> {
       if (lastExpiryNoticeDate !== dueTimestamp) {
         lastExpiryNoticeDate = dueTimestamp;
 
-        const dueFormatted = new Intl.DateTimeFormat('uz-UZ', {
-          day: '2-digit',
-          month: '2-digit',
-          year: 'numeric',
-        }).format(settings.nextDueDate);
-
-        const text =
-          `⚠️ *Server to'lovi muddati tugadi!*\n\n` +
-          `Platforma serveri to'lov muddati yakuniga yetdi (${dueFormatted}).\n` +
-          `Dastur istalgan daqiqada to'xtab qolishi mumkin.\n` +
-          `Iltimos, server uzluksiz ishlashi uchun to'lov qiling.`;
-
+        const text = `⚠️ Server to'lovi muddati tugadi!`;
         await sendMessage(text, undefined, MAIN_KEYBOARD);
       }
     } else {
