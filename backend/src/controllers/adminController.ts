@@ -5,6 +5,7 @@ import { createTest, getAdminTests, toggleTestStatus } from '../services/testSer
 import { getStudentsForAdmin } from '../services/resultService';
 import { countAvailableExercises, countAvailablePracticeQuestions } from '../utils/questionLoader';
 import prisma from '../config/database';
+import { cache } from '../utils/cache';
 
 const sectionSchema = z.object({
   subject: z.enum(['VOCABULARY', 'GRAMMAR']),
@@ -73,7 +74,13 @@ export async function handleCreateTest(req: AuthRequest, res: Response): Promise
 
 export async function handleGetTests(req: AuthRequest, res: Response): Promise<void> {
   try {
-    const tests = await getAdminTests(req.user!.userId);
+    const adminId = req.user!.userId;
+    const cacheKey = `tests:${adminId}`;
+    const cached = cache.get<object[]>(cacheKey);
+    if (cached) { res.json({ success: true, data: cached }); return; }
+
+    const tests = await getAdminTests(adminId);
+    cache.set(cacheKey, tests, 60); // 60 second cache
     res.json({ success: true, data: tests });
   } catch {
     res.status(500).json({ success: false, message: 'Failed to fetch tests' });
@@ -83,7 +90,11 @@ export async function handleGetTests(req: AuthRequest, res: Response): Promise<v
 export async function handleToggleTest(req: AuthRequest, res: Response): Promise<void> {
   try {
     const { id } = req.params;
-    const test = await toggleTestStatus(id, req.user!.userId);
+    const adminId = req.user!.userId;
+    const test = await toggleTestStatus(id, adminId);
+    // Invalidate caches on mutation
+    cache.invalidate(`tests:${adminId}`);
+    cache.invalidate(`dashboard:${adminId}`);
     res.json({ success: true, data: test });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Failed to update test';
@@ -93,7 +104,13 @@ export async function handleToggleTest(req: AuthRequest, res: Response): Promise
 
 export async function handleGetStudents(req: AuthRequest, res: Response): Promise<void> {
   try {
-    const students = await getStudentsForAdmin(req.user!.userId);
+    const adminId = req.user!.userId;
+    const cacheKey = `students:${adminId}`;
+    const cached = cache.get<object[]>(cacheKey);
+    if (cached) { res.json({ success: true, data: cached }); return; }
+
+    const students = await getStudentsForAdmin(adminId);
+    cache.set(cacheKey, students, 60); // 60 second cache
     res.json({ success: true, data: students });
   } catch {
     res.status(500).json({ success: false, message: 'Failed to fetch students' });
@@ -103,31 +120,45 @@ export async function handleGetStudents(req: AuthRequest, res: Response): Promis
 export async function handleGetDashboard(req: AuthRequest, res: Response): Promise<void> {
   try {
     const adminId = req.user!.userId;
+    const cacheKey = `dashboard:${adminId}`;
 
-    const [totalTests, totalStudents, activeSessions] = await Promise.all([
+    // Return cached result if fresh (30 second TTL)
+    const cached = cache.get<object>(cacheKey);
+    if (cached) {
+      res.json({ success: true, data: cached });
+      return;
+    }
+
+    // Run all queries in parallel — use groupBy count instead of findMany+distinct
+    const [totalTests, uniqueStudents, activeSessions] = await Promise.all([
       prisma.testSession.count({ where: { createdBy: adminId } }),
-      prisma.result.findMany({
+      prisma.result.groupBy({
+        by: ['studentId'],
         where: { testSession: { createdBy: adminId } },
-        distinct: ['studentId'],
+        _count: { studentId: true },
       }),
       prisma.activeSession.findMany({
         where: { testSession: { createdBy: adminId }, isActive: true },
-        include: {
+        select: {
+          id: true,
+          currentSectionIndex: true,
+          createdAt: true,
           student: { select: { fullName: true, username: true } },
           testSession: { select: { title: true, pinCode: true } },
         },
+        orderBy: { createdAt: 'desc' },
       }),
     ]);
 
-    res.json({
-      success: true,
-      data: {
-        totalTests,
-        totalStudents: totalStudents.length,
-        liveCount: activeSessions.length,
-        liveSessions: activeSessions,
-      },
-    });
+    const data = {
+      totalTests,
+      totalStudents: uniqueStudents.length,
+      liveCount: activeSessions.length,
+      liveSessions: activeSessions,
+    };
+
+    cache.set(cacheKey, data, 30); // Cache 30 seconds
+    res.json({ success: true, data });
   } catch {
     res.status(500).json({ success: false, message: 'Failed to fetch dashboard' });
   }
@@ -161,6 +192,8 @@ export async function handleDeleteTest(req: AuthRequest, res: Response): Promise
     }
 
     await prisma.testSession.delete({ where: { id } });
+    cache.invalidate(`tests:${adminId}`);
+    cache.invalidate(`dashboard:${adminId}`);
     res.json({ success: true, message: "Test o'chirildi" });
   } catch {
     res.status(500).json({ success: false, message: "Test o'chirishda xatolik" });
