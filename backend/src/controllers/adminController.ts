@@ -141,7 +141,7 @@ export async function handleGetDashboard(req: AuthRequest, res: Response): Promi
         where: { testSession: { createdBy: adminId }, isActive: true },
         select: {
           id: true,
-          currentSectionIndex: true,
+          sectionOrder: true,
           createdAt: true,
           student: { select: { fullName: true, username: true } },
           testSession: { select: { title: true, pinCode: true } },
