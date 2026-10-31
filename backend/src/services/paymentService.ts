@@ -1,8 +1,29 @@
 import prisma from '../config/database';
 import { getUSDRate } from '../utils/cbuRateService';
-import { sendPaymentNotification, editPaymentMessage, answerCallbackQuery } from './telegramService';
+import { sendPaymentNotification, editPaymentMessage, answerCallbackQuery, sendMessage } from './telegramService';
 import { ENV } from '../config/env';
 import path from 'path';
+
+// ─── Helper ───────────────────────────────────────────────────────────────────
+function formatDate(d: Date) {
+  return new Intl.DateTimeFormat('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(d);
+}
+
+async function getOrCreateSettings() {
+  const now = new Date();
+  let settings = await prisma.paymentSettings.findUnique({ where: { id: 'singleton' } });
+  if (!settings) {
+    settings = await prisma.paymentSettings.create({
+      data: {
+        id: 'singleton',
+        nextDueDate: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
+        cycleStartDate: now,
+        isActive: true,
+      },
+    });
+  }
+  return settings;
+}
 
 export async function getPaymentStatus() {
   const rate = await getUSDRate();
@@ -10,21 +31,7 @@ export async function getPaymentStatus() {
   const costUZS = Math.round(costUSD * rate);
   const now = new Date();
 
-  let settings = await prisma.paymentSettings.findUnique({
-    where: { id: 'singleton' },
-  });
-
-  if (!settings) {
-    const defaultNextDue = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-    settings = await prisma.paymentSettings.create({
-      data: {
-        id: 'singleton',
-        nextDueDate: defaultNextDue,
-        cycleStartDate: now,
-        isActive: true,
-      },
-    });
-  }
+  const settings = await getOrCreateSettings();
 
   const diffMs = settings.nextDueDate.getTime() - now.getTime();
   const daysLeft = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
@@ -53,6 +60,48 @@ export async function getPaymentStatus() {
         }
       : null,
   };
+}
+
+// ─── Timer management ─────────────────────────────────────────────────────────
+export async function updateDueDate(action: 'add' | 'remove' | 'setdate' | 'add30', value?: string | number) {
+  const settings = await getOrCreateSettings();
+  const now = new Date();
+  let newDate: Date;
+
+  switch (action) {
+    case 'add30':
+      newDate = new Date(settings.nextDueDate.getTime() + 30 * 24 * 60 * 60 * 1000);
+      break;
+    case 'add': {
+      const days = Number(value);
+      if (isNaN(days) || days <= 0) throw new Error('Kun soni musbat bo\'lishi kerak');
+      newDate = new Date(settings.nextDueDate.getTime() + days * 24 * 60 * 60 * 1000);
+      break;
+    }
+    case 'remove': {
+      const days = Number(value);
+      if (isNaN(days) || days <= 0) throw new Error('Kun soni musbat bo\'lishi kerak');
+      newDate = new Date(settings.nextDueDate.getTime() - days * 24 * 60 * 60 * 1000);
+      break;
+    }
+    case 'setdate': {
+      const parsed = new Date(value as string);
+      if (isNaN(parsed.getTime())) throw new Error('Noto\'g\'ri sana formati. Masalan: 2024-12-31');
+      newDate = parsed;
+      break;
+    }
+    default:
+      throw new Error('Noma\'lum amal');
+  }
+
+  await prisma.paymentSettings.update({
+    where: { id: 'singleton' },
+    data: { nextDueDate: newDate },
+  });
+
+  const diffMs = newDate.getTime() - now.getTime();
+  const daysLeft = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+  return { newDate, daysLeft };
 }
 
 export async function getPaymentHistory(page = 1, limit = 20) {
@@ -84,21 +133,7 @@ export async function submitPayment(params: {
   const costUZS = Math.round(costUSD * rate);
   const now = new Date();
 
-  let settings = await prisma.paymentSettings.findUnique({
-    where: { id: 'singleton' },
-  });
-
-  if (!settings) {
-    const defaultNextDue = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-    settings = await prisma.paymentSettings.create({
-      data: {
-        id: 'singleton',
-        nextDueDate: defaultNextDue,
-        cycleStartDate: now,
-        isActive: true,
-      },
-    });
-  }
+  const settings = await getOrCreateSettings();
 
   const record = await prisma.paymentRecord.create({
     data: {

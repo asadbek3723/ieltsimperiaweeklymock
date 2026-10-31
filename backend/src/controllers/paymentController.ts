@@ -10,7 +10,9 @@ import {
   confirmPayment,
   rejectPayment,
   handleTelegramCallback,
+  updateDueDate,
 } from '../services/paymentService';
+import { handleBotCommand } from '../services/telegramService';
 import { getUSDRate } from '../utils/cbuRateService';
 import { ENV } from '../config/env';
 
@@ -193,14 +195,34 @@ export async function handleManualReject(req: Request, res: Response) {
   }
 }
 
+export async function handleUpdateTimer(req: Request, res: Response) {
+  try {
+    const { action, value } = req.body;
+    if (!['add', 'remove', 'setdate', 'add30'].includes(action)) {
+      return res.status(400).json({ success: false, message: 'Noto\'g\'ri parametr (action)' });
+    }
+    const result = await updateDueDate(action, value);
+    return res.json({
+      success: true,
+      message: 'Timer muvaffaqiyatli yangilandi',
+      data: result,
+    });
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : 'Xatolik yuz berdi';
+    return res.status(400).json({ success: false, message: msg });
+  }
+}
+
 export async function handleTelegramWebhook(req: Request, res: Response) {
   // Always answer 200 OK fast to Telegram to prevent retry floods
   res.status(200).json({ ok: true });
 
   try {
-    const { callback_query } = req.body;
+    const { callback_query, message } = req.body;
     if (callback_query && callback_query.data && callback_query.id) {
       await handleTelegramCallback(callback_query.data, callback_query.id);
+    } else if (message && message.text) {
+      await handleBotCommand(message.text);
     }
   } catch (err) {
     console.error('[PaymentController] Telegram webhook error:', err);

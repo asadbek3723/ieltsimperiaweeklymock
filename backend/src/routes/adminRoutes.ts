@@ -21,6 +21,7 @@ import {
   handleServeReceipt,
   handleManualConfirm,
   handleManualReject,
+  handleUpdateTimer,
 } from '../controllers/paymentController';
 
 const router = Router();
@@ -45,5 +46,6 @@ router.post('/payment/submit', handleSubmitReceipt);
 router.get('/payment/receipt/:filename', handleServeReceipt);
 router.patch('/payment/:id/confirm', handleManualConfirm);
 router.patch('/payment/:id/reject', handleManualReject);
+router.patch('/payment/timer', handleUpdateTimer);
 
 export default router;

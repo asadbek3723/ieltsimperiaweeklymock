@@ -130,3 +130,112 @@ export async function answerCallbackQuery(callbackQueryId: string, text: string,
     show_alert: showAlert,
   });
 }
+
+// ─── Send plain message to admin chat ────────────────────────────────────────
+export async function sendMessage(text: string): Promise<void> {
+  await telegramRequest('sendMessage', {
+    chat_id: ENV.TELEGRAM_CHAT_ID,
+    text,
+    parse_mode: 'Markdown',
+  });
+}
+
+// ─── Bot command handler ──────────────────────────────────────────────────────
+const HELP_TEXT = `
+🤖 *To'lov Timer Bot — Buyruqlar:*
+
+📊 \`/status\` — Joriy holat (qancha kun qoldi, to'lov muddati)
+➕ \`/add30\` — 30 kun qo'shish
+➕ \`/add <kun>\` — N kun qo'shish (masalan: \`/add 7\`)
+➖ \`/remove <kun>\` — N kun ayirish (masalan: \`/remove 5\`)
+📅 \`/setdate <sana>\` — Aniq sana belgilash (masalan: \`/setdate 2024-12-31\`)
+❓ \`/help\` — Yordam
+
+*Misol:*
+\`/add 15\` → 15 kun qo'shadi
+\`/setdate 2025-01-31\` → To'lov muddatini shu sanaga belgilaydi
+`.trim();
+
+export async function handleBotCommand(text: string): Promise<void> {
+  if (!text || !text.startsWith('/')) return;
+
+  // Lazy import to avoid circular dependency
+  const { updateDueDate, getPaymentStatus } = await import('./paymentService');
+
+  const parts = text.trim().split(/\s+/);
+  const cmd = parts[0].toLowerCase().split('@')[0]; // remove @botname suffix
+
+  try {
+    switch (cmd) {
+      case '/help': {
+        await sendMessage(HELP_TEXT);
+        break;
+      }
+
+      case '/status': {
+        const status = await getPaymentStatus();
+        const flag = status.isOverdue ? '🔴' : status.daysLeft <= 3 ? '🟠' : status.daysLeft <= 7 ? '🟡' : '🟢';
+        const dueStr = new Intl.DateTimeFormat('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(status.nextDueDate));
+        await sendMessage(
+          `${flag} *Server To'lov Holati*\n\n` +
+          `⏳ *Qolgan kun:* ${status.daysLeft <= 0 ? `0 (muddati o'tgan!)` : status.daysLeft + ' kun'}\n` +
+          `📅 *To'lov muddati:* ${dueStr}\n` +
+          `💵 *Narxi:* $${status.costUSD.toFixed(2)} ≈ ${Math.round(status.costUZS).toLocaleString()} so'm\n` +
+          `📊 *CBU kursi:* ${Math.round(status.exchangeRate).toLocaleString()} UZS/USD\n` +
+          `${status.pendingPayment ? '⏳ Kutilayotgan to\'lov bor!' : '✅ Kutilayotgan to\'lov yo\'q'}`
+        );
+        break;
+      }
+
+      case '/add30': {
+        const { newDate, daysLeft } = await updateDueDate('add30');
+        const dueStr = new Intl.DateTimeFormat('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(newDate);
+        await sendMessage(`✅ *30 kun qo'shildi!*\n\n📅 Yangi muddat: *${dueStr}*\n⏳ Qolgan kun: *${daysLeft}*`);
+        break;
+      }
+
+      case '/add': {
+        const days = parseInt(parts[1] || '', 10);
+        if (isNaN(days) || days <= 0) {
+          await sendMessage('⚠️ Noto\'g\'ri buyruq. Misol: `/add 7`');
+          break;
+        }
+        const { newDate, daysLeft } = await updateDueDate('add', days);
+        const dueStr = new Intl.DateTimeFormat('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(newDate);
+        await sendMessage(`✅ *${days} kun qo'shildi!*\n\n📅 Yangi muddat: *${dueStr}*\n⏳ Qolgan kun: *${daysLeft}*`);
+        break;
+      }
+
+      case '/remove': {
+        const days = parseInt(parts[1] || '', 10);
+        if (isNaN(days) || days <= 0) {
+          await sendMessage('⚠️ Noto\'g\'ri buyruq. Misol: `/remove 5`');
+          break;
+        }
+        const { newDate, daysLeft } = await updateDueDate('remove', days);
+        const dueStr = new Intl.DateTimeFormat('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(newDate);
+        await sendMessage(`✅ *${days} kun ayirildi!*\n\n📅 Yangi muddat: *${dueStr}*\n⏳ Qolgan kun: *${daysLeft}*`);
+        break;
+      }
+
+      case '/setdate': {
+        const dateStr = parts[1];
+        if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+          await sendMessage('⚠️ Noto\'g\'ri format. Misol: `/setdate 2024-12-31`');
+          break;
+        }
+        const { newDate, daysLeft } = await updateDueDate('setdate', dateStr);
+        const dueStr = new Intl.DateTimeFormat('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(newDate);
+        await sendMessage(`✅ *Muddat belgilandi!*\n\n📅 Yangi muddat: *${dueStr}*\n⏳ Qolgan kun: *${daysLeft}*`);
+        break;
+      }
+
+      default: {
+        await sendMessage(`❓ Noma'lum buyruq: \`${cmd}\`\n\n${HELP_TEXT}`);
+      }
+    }
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Xatolik yuz berdi';
+    await sendMessage(`❌ *Xatolik:* ${msg}`);
+  }
+}

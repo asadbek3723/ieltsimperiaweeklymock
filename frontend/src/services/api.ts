@@ -62,6 +62,8 @@ export const adminApi = {
     api.post('/admin/payment/submit', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     }),
+  updatePaymentTimer: (action: 'add' | 'remove' | 'setdate' | 'add30', value?: string | number) =>
+    api.patch('/admin/payment/timer', { action, value }),
 };
 
 export const studentApi = {

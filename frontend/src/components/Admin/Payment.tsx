@@ -179,6 +179,12 @@ export default function Payment() {
   const [copied, setCopied]             = useState(false);
   const [isDragging, setIsDragging]     = useState(false);
 
+  // Timer adjustment state
+  const [timerAdjusting, setTimerAdjusting] = useState(false);
+  const [customDays, setCustomDays]         = useState('');
+  const [customDate, setCustomDate]         = useState('');
+  const [timerFeedback, setTimerFeedback]   = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ── Data fetching ────────────────────────────────────────────────────────
@@ -260,6 +266,28 @@ export default function Payment() {
     }
   };
 
+  const handleAdjustTimer = async (action: 'add' | 'remove' | 'setdate' | 'add30', value?: string | number) => {
+    setTimerAdjusting(true);
+    setTimerFeedback(null);
+    try {
+      const res = await adminApi.updatePaymentTimer(action, value);
+      if (res.data.success) {
+        setTimerFeedback({ type: 'success', message: res.data.message || 'Muvaffaqiyatli yangilandi' });
+        await fetchStatus();
+        if (action === 'add' || action === 'remove') setCustomDays('');
+        if (action === 'setdate') setCustomDate('');
+      } else {
+        setTimerFeedback({ type: 'error', message: res.data.message || 'Xatolik yuz berdi' });
+      }
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { message?: string } } };
+      setTimerFeedback({ type: 'error', message: e?.response?.data?.message || 'Server xatosi' });
+    } finally {
+      setTimerAdjusting(false);
+      setTimeout(() => setTimerFeedback(null), 4000);
+    }
+  };
+
   // ── Derived values ───────────────────────────────────────────────────────
   const daysLeft   = statusData?.daysLeft ?? 0;
   const isOverdue  = statusData?.isOverdue ?? false;
@@ -328,6 +356,11 @@ export default function Payment() {
               <p className={`text-sm font-semibold mt-1 ${urgencyConfig.labelColor}`}>
                 {urgencyConfig.label}
               </p>
+              {statusData?.nextDueDate && (
+                <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">
+                  Muddati: {new Date(statusData.nextDueDate).toLocaleDateString('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                </p>
+              )}
             </div>
             {urgency === 'overdue' && (
               <div className="absolute bottom-4 right-4 pulse-ring w-3 h-3 rounded-full bg-red-500" />
@@ -389,6 +422,91 @@ export default function Payment() {
             </a>
           </div>
         )}
+
+        {/* ── Timer Management Control (Admin) ─────────────────────────────── */}
+        <div
+          className="anim-fadeup rounded-2xl p-6 ring-1 ring-slate-200/70 dark:ring-slate-700/50 bg-white/70 dark:bg-slate-800/50 shadow-[0_2px_20px_-4px_rgba(0,0,0,0.07)] backdrop-blur-sm space-y-4"
+          style={{ animationDelay: '220ms' }}
+        >
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-indigo-500"><Icon.Clock /></span>
+                <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+                  Timerni boshqarish (Admin sozlamalari)
+                </h2>
+              </div>
+              <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
+                Telegram bot yoki ushbu panel orqali to'lov muddatini tezkor o'zgartirishingiz mumkin
+              </p>
+            </div>
+            <button
+              onClick={() => handleAdjustTimer('add30')}
+              disabled={timerAdjusting}
+              className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 active:scale-[0.98] shadow-[0_2px_12px_-2px_rgba(16,185,129,0.4)] disabled:opacity-50 transition-all shrink-0"
+            >
+              {timerAdjusting ? <span className="spin"><Icon.Spinner /></span> : '+30 kun qo\'shish'}
+            </button>
+          </div>
+
+          {timerFeedback && (
+            <div
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-medium anim-fadein ${
+                timerFeedback.type === 'success'
+                  ? 'bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400 ring-1 ring-emerald-200/60 dark:ring-emerald-900/30'
+                  : 'bg-red-50 dark:bg-red-950/20 text-red-700 dark:text-red-400 ring-1 ring-red-200/60 dark:ring-red-900/30'
+              }`}
+            >
+              {timerFeedback.type === 'success' ? <Icon.Check /> : <Icon.AlertTriangle />}
+              <span>{timerFeedback.message}</span>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+            {/* Add / remove days */}
+            <div className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/40 ring-1 ring-slate-200/50 dark:ring-slate-700/40">
+              <input
+                type="number"
+                min="1"
+                placeholder="Kun soni (masalan: 7)"
+                value={customDays}
+                onChange={e => setCustomDays(e.target.value)}
+                className="w-full bg-transparent text-xs text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none px-2"
+              />
+              <button
+                onClick={() => handleAdjustTimer('add', Number(customDays))}
+                disabled={timerAdjusting || !customDays}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 disabled:opacity-40 transition-colors shrink-0"
+              >
+                + Qo'shish
+              </button>
+              <button
+                onClick={() => handleAdjustTimer('remove', Number(customDays))}
+                disabled={timerAdjusting || !customDays}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 hover:bg-rose-100 disabled:opacity-40 transition-colors shrink-0"
+              >
+                - Ayirish
+              </button>
+            </div>
+
+            {/* Set exact date */}
+            <div className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/40 ring-1 ring-slate-200/50 dark:ring-slate-700/40">
+              <input
+                type="date"
+                value={customDate}
+                onChange={e => setCustomDate(e.target.value)}
+                className="w-full bg-transparent text-xs text-slate-800 dark:text-slate-200 focus:outline-none px-2"
+              />
+              <button
+                onClick={() => handleAdjustTimer('setdate', customDate)}
+                disabled={timerAdjusting || !customDate}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-300 disabled:opacity-40 transition-colors shrink-0"
+              >
+                Sanani o'rnatish
+              </button>
+            </div>
+          </div>
+        </div>
 
         {/* ── Main two-column section ──────────────────────────────────────── */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
