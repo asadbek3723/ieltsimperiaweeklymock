@@ -302,15 +302,18 @@ export default function Payment() {
   }[urgency];
 
   // ── Skeleton loader ───────────────────────────────────────────────────────
-  if (loading) {
+  if (loading && !statusData) {
     return (
-      <div className="min-h-screen p-6 md:p-10 space-y-6 max-w-5xl mx-auto">
-        <Skeleton className="h-8 w-52" />
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="w-full space-y-6">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {[1,2,3].map(i => <Skeleton key={i} className="h-32" />)}
         </div>
-        <Skeleton className="h-48" />
-        <Skeleton className="h-72" />
+        <Skeleton className="h-28" />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <Skeleton className="h-72" />
+          <Skeleton className="h-72" />
+        </div>
+        <Skeleton className="h-64" />
       </div>
     );
   }
@@ -320,24 +323,7 @@ export default function Payment() {
       {/* Global keyframes */}
       <style>{fadeUp}</style>
 
-      <div className="min-h-screen p-5 md:p-9 max-w-5xl mx-auto space-y-7">
-
-        {/* ── Page header ─────────────────────────────────────────────────── */}
-        <div className="anim-fadeup flex items-end justify-between" style={{ animationDelay: '0ms' }}>
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1">Moliya</p>
-            <h1 className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-white tracking-tight">
-              To'lov portali
-            </h1>
-          </div>
-          <button
-            onClick={handleRefresh}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-all duration-200"
-          >
-            <span className={refreshing ? 'spin' : ''}><Icon.RefreshCw /></span>
-            Yangilash
-          </button>
-        </div>
+      <div className="w-full space-y-6 pb-8">
 
         {/* ── Status cards row ─────────────────────────────────────────────── */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

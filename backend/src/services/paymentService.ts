@@ -2,6 +2,7 @@ import prisma from '../config/database';
 import { getUSDRate } from '../utils/cbuRateService';
 import { sendPaymentNotification, editPaymentMessage, answerCallbackQuery, sendMessage } from './telegramService';
 import { ENV } from '../config/env';
+import { cache } from '../utils/cache';
 import path from 'path';
 
 // ─── Helper ───────────────────────────────────────────────────────────────────
@@ -26,6 +27,10 @@ async function getOrCreateSettings() {
 }
 
 export async function getPaymentStatus() {
+  const cacheKey = 'payment:status';
+  const cached = cache.get<any>(cacheKey);
+  if (cached) return cached;
+
   const rate = await getUSDRate();
   const costUSD = ENV.RAILWAY_COST_USD;
   const costUZS = Math.round(costUSD * rate);
@@ -42,7 +47,7 @@ export async function getPaymentStatus() {
     orderBy: { submittedAt: 'desc' },
   });
 
-  return {
+  const result = {
     daysLeft,
     isOverdue,
     nextDueDate: settings.nextDueDate,
@@ -60,6 +65,9 @@ export async function getPaymentStatus() {
         }
       : null,
   };
+
+  cache.set(cacheKey, result, 15); // 15 seconds TTL cache
+  return result;
 }
 
 // ─── Timer management ─────────────────────────────────────────────────────────
@@ -98,6 +106,8 @@ export async function updateDueDate(action: 'add' | 'remove' | 'setdate' | 'add3
     where: { id: 'singleton' },
     data: { nextDueDate: newDate },
   });
+
+  cache.invalidate('payment:status');
 
   const diffMs = newDate.getTime() - now.getTime();
   const daysLeft = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
