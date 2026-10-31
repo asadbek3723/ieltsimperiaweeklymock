@@ -226,119 +226,180 @@ export async function answerCallbackQuery(callbackQueryId: string, text: string,
 }
 
 // ─── Send plain message to chat ───────────────────────────────────────────────
-export async function sendMessage(text: string, chatId?: string | number): Promise<void> {
+export async function sendMessage(
+  text: string,
+  chatId?: string | number,
+  replyMarkup?: Record<string, unknown>
+): Promise<void> {
   const targetChatId = chatId || ENV.TELEGRAM_CHAT_ID;
   if (!targetChatId) {
     console.warn('[Telegram] No target chatId for sendMessage');
     return;
   }
-  await telegramRequest('sendMessage', {
+  const body: Record<string, unknown> = {
     chat_id: targetChatId,
     text,
     parse_mode: 'Markdown',
-  });
+  };
+  if (replyMarkup) {
+    body.reply_markup = replyMarkup;
+  }
+  await telegramRequest('sendMessage', body);
 }
 
-// ─── Bot command handler ──────────────────────────────────────────────────────
-const HELP_TEXT = `
-🤖 *To'lov Timer Bot — Buyruqlar:*
+// ─── Main Keyboard Menu (Clean, Professional, No slash typing needed!) ────────
+export const MAIN_KEYBOARD = {
+  keyboard: [
+    [{ text: '📊 Holatni ko\'rish' }, { text: '➕ 30 kun qo\'shish' }],
+    [{ text: '➕ Kun qo\'shish' }, { text: '➖ Kun ayirish' }],
+    [{ text: '📅 Sana belgilash' }, { text: 'ℹ️ Yordam' }],
+  ],
+  resize_keyboard: true,
+  is_persistent: true,
+};
 
-📊 \`/status\` — Joriy holat (qancha kun qoldi, to'lov muddati)
-➕ \`/add30\` — 30 kun qo'shish
-➕ \`/add <kun>\` — N kun qo'shish (masalan: \`/add 7\`)
-➖ \`/remove <kun>\` — N kun ayirish (masalan: \`/remove 5\`)
-📅 \`/setdate <sana>\` — Aniq sana belgilash (masalan: \`/setdate 2024-12-31\`)
-❓ \`/help\` — Yordam
-
-*Misol:*
-\`/add 15\` → 15 kun qo'shadi
-\`/setdate 2026-12-01\` → To'lov muddatini shu sanaga belgilaydi
-`.trim();
-
+// ─── Bot command & text handler ───────────────────────────────────────────────
 export async function handleBotCommand(text: string, replyChatId?: string | number): Promise<void> {
-  if (!text || !text.startsWith('/')) return;
+  if (!text) return;
 
   const targetChatId = replyChatId || ENV.TELEGRAM_CHAT_ID;
-
-  // Lazy import to avoid circular dependency
   const { updateDueDate, getPaymentStatus } = await import('./paymentService');
 
-  const parts = text.trim().split(/\s+/);
-  const cmd = parts[0].toLowerCase().split('@')[0]; // remove @botname suffix
+  const cleanText = text.trim();
+  const lowerText = cleanText.toLowerCase();
 
   try {
-    switch (cmd) {
-      case '/start':
-      case '/help': {
-        await sendMessage(HELP_TEXT, targetChatId);
-        break;
-      }
+    // 1. STATUS
+    if (lowerText === '/status' || lowerText === '📊 holatni ko\'rish' || lowerText === 'status' || lowerText === 'holat') {
+      const status = await getPaymentStatus();
+      const statusIcon = status.isOverdue ? '🔴' : status.daysLeft <= 3 ? '🟠' : status.daysLeft <= 7 ? '🟡' : '🟢';
+      const dueStr = new Intl.DateTimeFormat('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(status.nextDueDate));
+      
+      const message =
+        `${statusIcon} *Server To'lov Holati*\n\n` +
+        `• *Qolgan muddat:* ${status.daysLeft <= 0 ? '0 kun (muddati tugagan)' : `${status.daysLeft} kun`}\n` +
+        `• *To'lov muddati:* ${dueStr}\n` +
+        `• *Oylik to'lov:* $${status.costUSD.toFixed(2)} (${Math.round(status.costUZS).toLocaleString('uz-UZ')} so'm)\n` +
+        `• *CBU kursi:* 1 USD = ${Math.round(status.exchangeRate).toLocaleString('uz-UZ')} so'm\n\n` +
+        `${status.pendingPayment ? '⚠️ *Kutilayotgan to\'lov cheki mavjud.*' : '✅ Kutilayotgan to\'lov cheklari yo\'q.'}`;
 
-      case '/status': {
-        const status = await getPaymentStatus();
-        const flag = status.isOverdue ? '🔴' : status.daysLeft <= 3 ? '🟠' : status.daysLeft <= 7 ? '🟡' : '🟢';
-        const dueStr = new Intl.DateTimeFormat('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(status.nextDueDate));
-        await sendMessage(
-          `${flag} *Server To'lov Holati*\n\n` +
-          `⏳ *Qolgan muddat:* ${status.daysLeft <= 0 ? `0 kun (muddati o'tgan!)` : status.daysLeft + ' kun'}\n` +
-          `📅 *To'lov muddati:* ${dueStr}\n` +
-          `💵 *Oylik narx:* $${status.costUSD.toFixed(2)} ≈ ${Math.round(status.costUZS).toLocaleString()} so'm\n` +
-          `📊 *CBU kursi:* ${Math.round(status.exchangeRate).toLocaleString()} UZS / 1 USD\n` +
-          `${status.pendingPayment ? '⚠️ *Kutilayotgan to\'lov cheki bor!*' : '✅ Kutilayotgan to\'lov yo\'q'}`,
-          targetChatId
-        );
-        break;
-      }
+      await sendMessage(message, targetChatId, MAIN_KEYBOARD);
+      return;
+    }
 
-      case '/add30': {
-        const { newDate, daysLeft } = await updateDueDate('add30');
-        const dueStr = new Intl.DateTimeFormat('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(newDate);
-        await sendMessage(`✅ *30 kun qo'shildi!*\n\n📅 Yangi to'lov muddati: *${dueStr}*\n⏳ Qolgan kun: *${daysLeft} kun*`, targetChatId);
-        break;
-      }
+    // 2. ADD 30 DAYS
+    if (lowerText === '/add30' || lowerText === '➕ 30 kun qo\'shish' || lowerText === '+30') {
+      const { newDate, daysLeft } = await updateDueDate('add30');
+      const dueStr = new Intl.DateTimeFormat('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(newDate);
+      await sendMessage(
+        `✅ *To'lov muddatiga 30 kun qo'shildi.*\n\n` +
+        `• Yangi muddat: *${dueStr}*\n` +
+        `• Qolgan kun: *${daysLeft} kun*`,
+        targetChatId,
+        MAIN_KEYBOARD
+      );
+      return;
+    }
 
-      case '/add': {
-        const days = parseInt(parts[1] || '', 10);
-        if (isNaN(days) || days <= 0) {
-          await sendMessage('⚠️ Noto\'g\'ri buyruq. Misol: `/add 7`', targetChatId);
-          break;
-        }
+    // 3. HELP OR START
+    if (lowerText === '/start' || lowerText === '/help' || lowerText === 'ℹ️ yordam' || lowerText === 'yordam') {
+      const welcome =
+        `*IELTS Imperia Server Boshqaruv Markazi*\n\n` +
+        `Quyidagi menyu tugmalaridan foydalanishingiz mumkin:\n\n` +
+        `• *📊 Holatni ko'rish* — Server to'lovi va muddatini tekshirish\n` +
+        `• *➕ 30 kun qo'shish* — Bir bosish bilan muddatni 1 oy uzaytirish\n` +
+        `• *➕ Kun qo'shish* — Masalan: \`+7\` yoki \`+15\` deb yozing\n` +
+        `• *➖ Kun ayirish* — Masalan: \`-5\` deb yozing\n` +
+        `• *📅 Sana belgilash* — Masalan: \`2026-12-01\` deb yozing`;
+
+      await sendMessage(welcome, targetChatId, MAIN_KEYBOARD);
+      return;
+    }
+
+    // 4. ADD DAYS (Prompt or direct "+N" or "/add N")
+    if (lowerText === '➕ kun qo\'shish') {
+      await sendMessage(
+        `Necha kun qo'shmoqchisiz?\n\nShunchaki qo'shmoqchi bo'lgan kun sonini yozib yuboring (masalan: *+7* yoki *+15*):`,
+        targetChatId,
+        MAIN_KEYBOARD
+      );
+      return;
+    }
+
+    if (/^\+?\d+$/.test(cleanText) || lowerText.startsWith('/add ')) {
+      const days = parseInt(cleanText.replace(/^\+/, '').replace('/add ', '').trim(), 10);
+      if (!isNaN(days) && days > 0) {
         const { newDate, daysLeft } = await updateDueDate('add', days);
         const dueStr = new Intl.DateTimeFormat('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(newDate);
-        await sendMessage(`✅ *${days} kun qo'shildi!*\n\n📅 Yangi to'lov muddati: *${dueStr}*\n⏳ Qolgan kun: *${daysLeft} kun*`, targetChatId);
-        break;
-      }
-
-      case '/remove': {
-        const days = parseInt(parts[1] || '', 10);
-        if (isNaN(days) || days <= 0) {
-          await sendMessage('⚠️ Noto\'g\'ri buyruq. Misol: `/remove 5`', targetChatId);
-          break;
-        }
-        const { newDate, daysLeft } = await updateDueDate('remove', days);
-        const dueStr = new Intl.DateTimeFormat('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(newDate);
-        await sendMessage(`✅ *${days} kun ayirildi!*\n\n📅 Yangi to'lov muddati: *${dueStr}*\n⏳ Qolgan kun: *${daysLeft} kun*`, targetChatId);
-        break;
-      }
-
-      case '/setdate': {
-        const dateStr = parts[1];
-        if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-          await sendMessage('⚠️ Noto\'g\'ri format. Misol: `/setdate 2026-12-01`', targetChatId);
-          break;
-        }
-        const { newDate, daysLeft } = await updateDueDate('setdate', dateStr);
-        const dueStr = new Intl.DateTimeFormat('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(newDate);
-        await sendMessage(`✅ *To'lov muddati belgilandi!*\n\n📅 Yangi muddat: *${dueStr}*\n⏳ Qolgan kun: *${daysLeft} kun*`, targetChatId);
-        break;
-      }
-
-      default: {
-        await sendMessage(`❓ Noma'lum buyruq: \`${cmd}\`\n\n${HELP_TEXT}`, targetChatId);
+        await sendMessage(
+          `✅ *${days} kun muvaffaqiyatli qo'shildi.*\n\n` +
+          `• Yangi muddat: *${dueStr}*\n` +
+          `• Qolgan kun: *${daysLeft} kun*`,
+          targetChatId,
+          MAIN_KEYBOARD
+        );
+        return;
       }
     }
+
+    // 5. REMOVE DAYS (Prompt or direct "-N" or "/remove N")
+    if (lowerText === '➖ kun ayirish') {
+      await sendMessage(
+        `Necha kun ayirmoqchisiz?\n\nMinus belgisi bilan yozib yuboring (masalan: *-5* yoki *-3*):`,
+        targetChatId,
+        MAIN_KEYBOARD
+      );
+      return;
+    }
+
+    if (/^-\d+$/.test(cleanText) || lowerText.startsWith('/remove ')) {
+      const days = Math.abs(parseInt(cleanText.replace('/remove ', '').trim(), 10));
+      if (!isNaN(days) && days > 0) {
+        const { newDate, daysLeft } = await updateDueDate('remove', days);
+        const dueStr = new Intl.DateTimeFormat('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(newDate);
+        await sendMessage(
+          `✅ *${days} kun ayirildi.*\n\n` +
+          `• Yangi muddat: *${dueStr}*\n` +
+          `• Qolgan kun: *${daysLeft} kun*`,
+          targetChatId,
+          MAIN_KEYBOARD
+        );
+        return;
+      }
+    }
+
+    // 6. SET EXACT DATE (Prompt or direct "YYYY-MM-DD" or "/setdate YYYY-MM-DD")
+    if (lowerText === '📅 sana belgilash') {
+      await sendMessage(
+        `To'lov muddatini qaysi sanaga o'rnatmoqchisiz?\n\nSanani quyidagi ko'rinishda yozing (masalan: *2026-12-01*):`,
+        targetChatId,
+        MAIN_KEYBOARD
+      );
+      return;
+    }
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(cleanText) || lowerText.startsWith('/setdate ')) {
+      const dateStr = cleanText.replace('/setdate ', '').trim();
+      const { newDate, daysLeft } = await updateDueDate('setdate', dateStr);
+      const dueStr = new Intl.DateTimeFormat('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(newDate);
+      await sendMessage(
+        `✅ *To'lov muddati belgilandi.*\n\n` +
+        `• Yangi to'lov muddati: *${dueStr}*\n` +
+        `• Qolgan kun: *${daysLeft} kun*`,
+        targetChatId,
+        MAIN_KEYBOARD
+      );
+      return;
+    }
+
+    // Default response
+    await sendMessage(
+      `Tushunarsiz buyruq.\n\nIltimos, pastdagi menyu tugmalaridan birini tanlang yoki */help* deb yozing.`,
+      targetChatId,
+      MAIN_KEYBOARD
+    );
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Xatolik yuz berdi';
-    await sendMessage(`❌ *Xatolik:* ${msg}`, targetChatId);
+    await sendMessage(`Xatolik: ${msg}`, targetChatId, MAIN_KEYBOARD);
   }
 }
