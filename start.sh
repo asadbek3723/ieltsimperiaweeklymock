@@ -1,5 +1,5 @@
 #!/bin/bash
-# Production-ready Start script for IELTS Platform
+# Production-ready Start script for IELTS Platform (macOS & Linux compatible)
 
 echo "Starting Application..."
 
@@ -10,18 +10,13 @@ cleanup() {
 }
 trap cleanup SIGINT SIGTERM
 
-# Start backend (Production mode)
+# Start backend
 echo "Starting Backend..."
-cd backend
-# Railway uses 'node dist/server.js', we'll simulate production start
-npm start &
-cd ..
+(cd backend && node dist/server.js) &
 
-# Start frontend (Preview build if possible, or dev)
+# Start frontend
 echo "Starting Frontend..."
-cd frontend
-npm run dev &
-cd ..
+(cd frontend && node node_modules/vite/bin/vite.js) &
 
-echo "Application started! Access it via the local URL (usually http://localhost:5173)"
+echo "Application started! Access it via: http://localhost:5173"
 wait
