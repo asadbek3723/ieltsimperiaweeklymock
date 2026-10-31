@@ -304,10 +304,17 @@ interface HistoryRowProps {
   onView: (url: string) => void;
 }
 function HistoryRow({ record, idx, onView }: HistoryRowProps) {
+  const [copied, setCopied] = useState(false);
   const date = new Date(record.submittedAt);
   const dateStr = date.toLocaleDateString('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric' });
   const timeStr = date.toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' });
   const receiptUrl = record.receiptUrl ? resolveReceiptUrl(record.receiptUrl) : '';
+
+  const handleCopyId = () => {
+    navigator.clipboard.writeText(record.id);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
 
   return (
     <div
@@ -320,11 +327,27 @@ function HistoryRow({ record, idx, onView }: HistoryRowProps) {
         <span className="text-[10px] text-slate-400 dark:text-slate-500 tabular-nums">{timeStr}</span>
       </div>
 
-      {/* Amount */}
-      <div className="sm:col-span-1">
-        <p className="text-sm font-bold text-slate-900 dark:text-white tabular-nums">
-          {Math.round(record.amountUZS).toLocaleString('uz-UZ')} <span className="font-medium text-slate-400">so'm</span>
-        </p>
+      {/* ID */}
+      <div className="sm:col-span-1 flex items-center">
+        <button
+          type="button"
+          onClick={handleCopyId}
+          title="ID raqamidan nusxa olish"
+          className="group flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/80 dark:hover:bg-slate-700 transition-colors text-left"
+        >
+          <code className="font-mono text-[11px] font-semibold text-slate-700 dark:text-slate-300 group-hover:text-indigo-600 dark:group-hover:text-indigo-400">
+            {record.id}
+          </code>
+          {copied ? (
+            <span className="text-emerald-500 text-[10px] flex items-center">
+              <Icon.Check />
+            </span>
+          ) : (
+            <span className="text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300 opacity-60 group-hover:opacity-100 transition-opacity">
+              <Icon.Copy />
+            </span>
+          )}
+        </button>
       </div>
 
       {/* Status */}
@@ -770,7 +793,7 @@ export default function Payment() {
           {/* Column headers */}
           {!historyLoading && history.length > 0 && (
             <div className="hidden sm:grid grid-cols-[minmax(90px,auto)_1fr_auto_auto_auto] gap-x-5 px-5 py-3 bg-slate-50/60 dark:bg-slate-900/30 border-b border-slate-100/60 dark:border-slate-700/30">
-              {['Sana & Vaqt', 'Summa', 'Holat', "Ko'rildi", 'Chek'].map(h => (
+              {['Sana & Vaqt', 'ID', 'Holat', "Ko'rildi", 'Chek'].map(h => (
                 <span key={h} className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">{h}</span>
               ))}
             </div>
