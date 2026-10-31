@@ -14,7 +14,8 @@
                 "A": "However",
                 "B": "In addition"
             },
-            "answer": "A"
+            "answer": "A",
+            "text": "Choose the correct option for gap [1]:"
         },
         {
             "id": 2,
@@ -22,7 +23,8 @@
                 "A": "Alternatively",
                 "B": "Firstly"
             },
-            "answer": "B"
+            "answer": "B",
+            "text": "Choose the correct option for gap [2]:"
         },
         {
             "id": 3,
@@ -30,7 +32,8 @@
                 "A": "Furthermore",
                 "B": "In contrast"
             },
-            "answer": "A"
+            "answer": "A",
+            "text": "Choose the correct option for gap [3]:"
         },
         {
             "id": 4,
@@ -38,7 +41,8 @@
                 "A": "therefore",
                 "B": "nevertheless"
             },
-            "answer": "A"
+            "answer": "A",
+            "text": "Choose the correct option for gap [4]:"
         },
         {
             "id": 5,
@@ -46,7 +50,8 @@
                 "A": "Thirdly",
                 "B": "Similarly"
             },
-            "answer": "A"
+            "answer": "A",
+            "text": "Choose the correct option for gap [5]:"
         },
         {
             "id": 6,
@@ -54,7 +59,8 @@
                 "A": "Although",
                 "B": "Despite"
             },
-            "answer": "A"
+            "answer": "A",
+            "text": "Choose the correct option for gap [6]:"
         },
         {
             "id": 7,
@@ -62,7 +68,8 @@
                 "A": "In addition",
                 "B": "Consequently"
             },
-            "answer": "A"
+            "answer": "A",
+            "text": "Choose the correct option for gap [7]:"
         },
         {
             "id": 8,
@@ -70,7 +77,8 @@
                 "A": "as a result",
                 "B": "moreover"
             },
-            "answer": "A"
+            "answer": "A",
+            "text": "Choose the correct option for gap [8]:"
         },
         {
             "id": 9,
@@ -78,7 +86,8 @@
                 "A": "And",
                 "B": "Nevertheless"
             },
-            "answer": "B"
+            "answer": "B",
+            "text": "Choose the correct option for gap [9]:"
         }
     ]
 }
