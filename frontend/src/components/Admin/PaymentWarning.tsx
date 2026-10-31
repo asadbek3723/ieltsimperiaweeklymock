@@ -42,98 +42,140 @@ export function usePaymentStatus() {
 }
 
 /**
- * Professional, discrete, non-intrusive floating alert for Admin:
- * - Appears when remaining days <= 2 or overdue (<= 0)
- * - If closed via 'x', reappears after exactly 10 seconds!
+ * Professional, discrete floating alert for Admin:
+ * - When expired (isOverdue): Larger, prominent red warning banner.
+ *   If closed via 'x', reappears after exactly 5 seconds!
+ * - When pre-expiry warning (daysLeft <= 2): Slim, low-height, compact warning pill.
+ *   If closed via 'x', reappears after 10 seconds.
  */
 export function PaymentFloatingAlert() {
   const { status } = usePaymentStatus();
   const [visible, setVisible] = useState(true);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // If dismissed, show again in exactly 10 seconds
-  const handleDismiss = () => {
-    setVisible(false);
-    if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => {
-      setVisible(true);
-    }, 10000); // 10 seconds exactly
-  };
-
-  useEffect(() => {
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-    };
-  }, []);
-
   if (!status) return null;
   // If payment is already pending verification, don't scream with warning
   if (status.pendingPayment) return null;
 
-  const isCritical = status.daysLeft <= 2 || status.isOverdue;
+  const isOverdue = status.isOverdue || status.daysLeft <= 0;
+  const isCritical = status.daysLeft <= 2 || isOverdue;
   if (!isCritical || !visible) return null;
 
-  const isOverdue = status.isOverdue || status.daysLeft <= 0;
+  // When expired: reappears in 5 seconds; when warning: reappears in 10 seconds
+  const handleDismiss = () => {
+    setVisible(false);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    const delay = isOverdue ? 5000 : 10000;
+    timerRef.current = setTimeout(() => {
+      setVisible(true);
+    }, delay);
+  };
 
-  return (
-    <aside 
-      aria-label="To'lov bildirishnomasi" 
-      className="fixed bottom-5 right-5 z-50 max-w-sm w-[calc(100vw-2.5rem)] animate-in fade-in slide-in-from-bottom-3 duration-300 pointer-events-auto"
-    >
-      <div className="relative overflow-hidden rounded-2xl bg-slate-900/90 dark:bg-slate-950/90 backdrop-blur-md p-4 text-white shadow-[0_12px_36px_-6px_rgba(0,0,0,0.4)] ring-1 ring-white/10">
-        
-        {/* Glow indicator */}
-        <div 
-          className={`absolute -top-10 -right-10 w-24 h-24 rounded-full blur-2xl opacity-40 pointer-events-none ${
-            isOverdue ? 'bg-red-500' : 'bg-amber-500'
-          }`} 
-        />
+  // ── CASE 1: EXPIRED / OVERDUE (Kattaroq, to'xtamasdan ogohlantirib turuvchi) ──
+  if (isOverdue) {
+    return (
+      <aside
+        aria-label="Server to'lovi muddati tugadi"
+        className="fixed bottom-5 right-5 z-50 max-w-md w-[calc(100vw-2.5rem)] animate-in fade-in slide-in-from-bottom-4 duration-300 pointer-events-auto"
+      >
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-b from-slate-900 to-slate-950 p-5 text-white shadow-[0_20px_50px_-8px_rgba(239,68,68,0.35)] ring-1 ring-red-500/30">
+          {/* Intense red glow backdrop */}
+          <div className="absolute -top-12 -right-12 w-36 h-36 rounded-full bg-red-600/30 blur-3xl pointer-events-none" />
+          <div className="absolute -bottom-10 -left-10 w-28 h-28 rounded-full bg-rose-600/20 blur-2xl pointer-events-none" />
 
-        <div className="flex items-start gap-3 relative z-10">
-          {/* Animated pulse dot */}
-          <div className="mt-0.5 relative flex items-center justify-center shrink-0">
-            <span className={`animate-ping absolute inline-flex h-3 w-3 rounded-full opacity-75 ${
-              isOverdue ? 'bg-red-400' : 'bg-amber-400'
-            }`} />
-            <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${
-              isOverdue ? 'bg-red-500' : 'bg-amber-500'
-            }`} />
-          </div>
-
-          <div className="flex-1 min-w-0 pr-2">
-            <p className="text-xs font-bold tracking-tight text-white/95">
-              {isOverdue 
-                ? 'Server to\'lovi muddati tugadi!' 
-                : `To'lovga ${status.daysLeft} kun qoldi`}
-            </p>
-            <p className="text-[11px] text-slate-300/80 mt-0.5 leading-snug">
-              {isOverdue
-                ? 'Dastur xizmati istalgan daqiqada to\'xtab qolishi mumkin. Iltimos, server uchun to\'lov qiling.'
-                : 'Server xizmati uzluksiz ishlashi uchun to\'lov chekini yuklang.'}
-            </p>
-
-            <div className="mt-2.5 flex items-center gap-3">
-              <Link
-                to="/admin/payment"
-                className={`text-[11px] font-bold px-3 py-1.5 rounded-lg transition-all ${
-                  isOverdue
-                    ? 'bg-red-500/90 hover:bg-red-500 text-white shadow-sm'
-                    : 'bg-amber-500/90 hover:bg-amber-500 text-slate-950 shadow-sm'
-                }`}
-              >
-                To'lov qilish
-              </Link>
+          <div className="flex items-start gap-3.5 relative z-10">
+            {/* Animated pulse red icon */}
+            <div className="mt-0.5 relative flex items-center justify-center shrink-0 w-8 h-8 rounded-xl bg-red-500/20 text-red-400">
+              <span className="animate-ping absolute inline-flex h-4 w-4 rounded-full bg-red-400 opacity-60" />
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                <line x1="12" y1="9" x2="12" y2="13" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
             </div>
+
+            <div className="flex-1 min-w-0 pr-1">
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-bold text-white tracking-tight">
+                  Server to'lovi muddati tugadi!
+                </p>
+                <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-red-500/30 text-red-300 ring-1 ring-red-500/40">
+                  Muddati o'tgan
+                </span>
+              </div>
+              <p className="text-xs text-slate-300 mt-1.5 leading-relaxed">
+                Platforma xizmati istalgan daqiqada to'xtab qolishi mumkin. O'quvchilar test topshira olmay qolmasligi uchun darhol to'lov qiling.
+              </p>
+
+              <div className="mt-3.5 flex items-center gap-3">
+                <Link
+                  to="/admin/payment"
+                  className="text-xs font-bold px-4 py-2 rounded-xl bg-red-500 hover:bg-red-400 text-white shadow-[0_4px_16px_-4px_rgba(239,68,68,0.6)] active:scale-95 transition-all"
+                >
+                  To'lov sahifasiga o'tish
+                </Link>
+                <span className="text-[10px] text-slate-400">
+                  X bossangiz, 5s dan so'ng yana chiqadi
+                </span>
+              </div>
+            </div>
+
+            {/* Close button (x) -> Reappears after 5 seconds */}
+            <button
+              onClick={handleDismiss}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors shrink-0"
+              title="Yopish (5 soniyadan so'ng yana eslatiladi)"
+              aria-label="Yopish"
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
           </div>
+        </div>
+      </aside>
+    );
+  }
+
+  // ── CASE 2: PRE-EXPIRY WARNING (Heighti pastroq va ixcham/kichikroq) ────────
+  return (
+    <aside
+      aria-label="To'lov bildirishnomasi"
+      className="fixed bottom-5 right-5 z-50 max-w-xs w-[calc(100vw-2.5rem)] animate-in fade-in slide-in-from-bottom-3 duration-200 pointer-events-auto"
+    >
+      <div className="relative overflow-hidden rounded-xl bg-slate-900/90 dark:bg-slate-950/90 backdrop-blur-md px-3.5 py-2.5 text-white shadow-[0_8px_24px_-4px_rgba(0,0,0,0.35)] ring-1 ring-amber-500/20">
+        {/* Subtle amber glow */}
+        <div className="absolute -top-8 -right-8 w-20 h-20 rounded-full bg-amber-500/20 blur-xl pointer-events-none" />
+
+        <div className="flex items-center gap-2.5 relative z-10">
+          {/* Small pulse amber dot */}
+          <div className="relative flex items-center justify-center shrink-0">
+            <span className="animate-ping absolute inline-flex h-2.5 w-2.5 rounded-full bg-amber-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
+          </div>
+
+          <div className="flex-1 min-w-0">
+            <p className="text-[11px] font-semibold text-white/95 truncate">
+              To'lovga <span className="font-bold text-amber-400">{status.daysLeft} kun</span> qoldi
+            </p>
+          </div>
+
+          <Link
+            to="/admin/payment"
+            className="text-[10px] font-bold px-2.5 py-1 rounded-md bg-amber-500 hover:bg-amber-400 text-slate-950 shrink-0 transition-colors"
+          >
+            To'lash
+          </Link>
 
           {/* Close button (x) -> Reappears after 10 seconds */}
           <button
             onClick={handleDismiss}
-            className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors shrink-0"
+            className="p-1 rounded-md text-slate-400 hover:text-white hover:bg-white/10 transition-colors shrink-0"
             title="Yopish (10 soniyadan so'ng yana eslatiladi)"
             aria-label="Yopish"
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <line x1="18" y1="6" x2="6" y2="18" />
               <line x1="6" y1="6" x2="18" y2="18" />
             </svg>

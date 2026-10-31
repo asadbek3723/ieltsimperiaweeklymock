@@ -22,6 +22,13 @@ async function main() {
     console.log('[DB] Connecting to PostgreSQL...');
     await prisma.$connect();
     console.log('[DB] Connected successfully');
+
+    // Start background payment expiry monitoring (checks every 5 minutes)
+    const { checkAndNotifyExpiry } = await import('./services/paymentService');
+    checkAndNotifyExpiry().catch(e => console.error('[ExpiryCheck] Initial error:', e));
+    setInterval(() => {
+      checkAndNotifyExpiry().catch(e => console.error('[ExpiryCheck] Periodic error:', e));
+    }, 5 * 60 * 1000);
   } catch (err) {
     console.error('[DB] Connection warning/error:', err);
   }

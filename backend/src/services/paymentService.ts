@@ -1,9 +1,44 @@
 import prisma from '../config/database';
 import { getUSDRate } from '../utils/cbuRateService';
-import { sendPaymentNotification, editPaymentMessage, answerCallbackQuery, sendMessage } from './telegramService';
+import { sendPaymentNotification, editPaymentMessage, answerCallbackQuery, sendMessage, MAIN_KEYBOARD } from './telegramService';
 import { ENV } from '../config/env';
 import { cache } from '../utils/cache';
 import path from 'path';
+
+// Track sent expiry alerts to prevent spamming
+let lastExpiryNoticeDate: number | null = null;
+
+export async function checkAndNotifyExpiry(): Promise<void> {
+  try {
+    const settings = await getOrCreateSettings();
+    const now = new Date();
+
+    if (settings.nextDueDate.getTime() <= now.getTime()) {
+      const dueTimestamp = settings.nextDueDate.getTime();
+      if (lastExpiryNoticeDate !== dueTimestamp) {
+        lastExpiryNoticeDate = dueTimestamp;
+
+        const dueFormatted = new Intl.DateTimeFormat('uz-UZ', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+        }).format(settings.nextDueDate);
+
+        const text =
+          `⚠️ *Server to'lovi muddati tugadi!*\n\n` +
+          `Platforma serveri to'lov muddati yakuniga yetdi (${dueFormatted}).\n` +
+          `Dastur istalgan daqiqada to'xtab qolishi mumkin.\n` +
+          `Iltimos, server uzluksiz ishlashi uchun to'lov qiling.`;
+
+        await sendMessage(text, undefined, MAIN_KEYBOARD);
+      }
+    } else {
+      lastExpiryNoticeDate = null;
+    }
+  } catch (err) {
+    console.error('[PaymentService] Error in checkAndNotifyExpiry:', err);
+  }
+}
 
 // ─── Helper ───────────────────────────────────────────────────────────────────
 function formatDate(d: Date) {
@@ -41,6 +76,12 @@ export async function getPaymentStatus() {
   const diffMs = settings.nextDueDate.getTime() - now.getTime();
   const daysLeft = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
   const isOverdue = daysLeft <= 0;
+
+  if (isOverdue) {
+    checkAndNotifyExpiry().catch(() => {});
+  } else {
+    lastExpiryNoticeDate = null;
+  }
 
   const pendingPayment = await prisma.paymentRecord.findFirst({
     where: { status: 'PENDING' },
