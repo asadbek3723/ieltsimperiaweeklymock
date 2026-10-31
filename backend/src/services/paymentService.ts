@@ -137,6 +137,7 @@ export async function submitPayment(params: {
   receiptUrl: string;
   receiptType: string;
   filename: string;
+  filePath?: string;
 }) {
   const rate = await getUSDRate();
   const costUSD = ENV.RAILWAY_COST_USD;
@@ -170,6 +171,9 @@ export async function submitPayment(params: {
       amountUSD: costUSD,
       exchangeRate: rate,
       receiptUrl: publicReceiptUrl,
+      receiptType: params.receiptType,
+      filePath: params.filePath,
+      filename: params.filename,
       submittedAt: record.submittedAt,
     });
 

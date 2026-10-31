@@ -130,6 +130,7 @@ export async function handleSubmitReceipt(req: Request, res: Response) {
         receiptUrl: relativeUrl,
         receiptType,
         filename,
+        filePath: req.file.path,
       });
 
       return res.json({
