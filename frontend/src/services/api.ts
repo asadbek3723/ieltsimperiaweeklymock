@@ -8,7 +8,7 @@ const baseURL = isDev
   ? '/api'
   : import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api';
 
-const backendOrigin = isDev ? '' : (import.meta.env.VITE_API_URL || '');
+export const backendOrigin = isDev ? '' : (import.meta.env.VITE_API_URL || '');
 
 export const uploadsURL = (relativePath: string) =>
   `${backendOrigin}/uploads/${relativePath}`;

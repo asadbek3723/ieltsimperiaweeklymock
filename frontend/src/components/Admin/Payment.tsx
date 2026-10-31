@@ -1,10 +1,22 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { adminApi } from '../../services/api';
+import { adminApi, backendOrigin } from '../../services/api';
 import { PaymentRecord, PaymentStatusData } from '../../types';
 import { usePaymentStatus } from './PaymentWarning';
 
-// ─── Tiny animation helpers (no framer-motion dependency needed) ──────────────
-const fadeUp = `
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+/** Convert a relative receipt path (e.g. /api/admin/payment/receipt/foo.jpg)
+ *  to a full URL pointing at the backend origin. */
+const resolveReceiptUrl = (path: string): string => {
+  if (!path) return '';
+  if (path.startsWith('http://') || path.startsWith('https://')) return path;
+  return `${backendOrigin}${path.startsWith('/') ? path : `/${path}`}`;
+};
+
+const isImageUrl = (url: string) =>
+  /\.(jpg|jpeg|png|webp|gif|bmp|svg)(\?.*)?$/i.test(url);
+
+// ─── Global keyframes ─────────────────────────────────────────────────────────
+const STYLES = `
   @keyframes fadeUp {
     from { opacity: 0; transform: translateY(18px); }
     to   { opacity: 1; transform: translateY(0); }
@@ -17,9 +29,7 @@ const fadeUp = `
     0%   { background-position: -200% 0; }
     100% { background-position:  200% 0; }
   }
-  @keyframes spin {
-    to { transform: rotate(360deg); }
-  }
+  @keyframes spin { to { transform: rotate(360deg); } }
   @keyframes pulse-ring {
     0%   { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239,68,68,0.5); }
     70%  { transform: scale(1);    box-shadow: 0 0 0 10px rgba(239,68,68,0); }
@@ -29,9 +39,14 @@ const fadeUp = `
     from { opacity: 0; transform: translateY(8px) scale(0.95); }
     to   { opacity: 1; transform: translateY(0) scale(1); }
   }
-  .anim-fadeup { animation: fadeUp 0.5s cubic-bezier(.22,.68,0,1.2) both; }
-  .anim-fadein { animation: fadeIn 0.4s ease both; }
-  .anim-countup { animation: countUp 0.6s cubic-bezier(.22,.68,0,1.2) both; }
+  @keyframes modalIn {
+    from { opacity: 0; transform: scale(0.93) translateY(12px); }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
+  }
+  .anim-fadeup   { animation: fadeUp  0.5s cubic-bezier(.22,.68,0,1.2) both; }
+  .anim-fadein   { animation: fadeIn  0.4s ease both; }
+  .anim-countup  { animation: countUp 0.6s cubic-bezier(.22,.68,0,1.2) both; }
+  .anim-modalin  { animation: modalIn 0.28s cubic-bezier(.22,.68,0,1.2) both; }
   .shimmer-loading {
     background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
     background-size: 200% 100%;
@@ -41,7 +56,7 @@ const fadeUp = `
     background: linear-gradient(90deg, #1f2937 25%, #374151 50%, #1f2937 75%);
     background-size: 200% 100%;
   }
-  .spin { animation: spin 0.8s linear infinite; }
+  .spin       { animation: spin 0.8s linear infinite; }
   .pulse-ring { animation: pulse-ring 2s ease-in-out infinite; }
 `;
 
@@ -72,12 +87,6 @@ const Icon = {
       <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" />
     </svg>
   ),
-  RefreshCw: () => (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="23 4 23 10 17 10" /><polyline points="1 20 1 14 7 14" />
-      <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" />
-    </svg>
-  ),
   Clock: () => (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
@@ -104,7 +113,7 @@ const Icon = {
     </svg>
   ),
   X: () => (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
       <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
     </svg>
   ),
@@ -118,9 +127,24 @@ const Icon = {
       <path d="M12 2a10 10 0 0110 10" />
     </svg>
   ),
+  Download: () => (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+    </svg>
+  ),
+  History: () => (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="1 4 1 10 7 10" /><path d="M3.51 15a9 9 0 1 0 .49-4.5L1 10" />
+    </svg>
+  ),
+  ZoomIn: () => (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /><line x1="11" y1="8" x2="11" y2="14" /><line x1="8" y1="11" x2="14" y2="11" />
+    </svg>
+  ),
 };
 
-// ─── Skeleton component ───────────────────────────────────────────────────────
+// ─── Skeleton ─────────────────────────────────────────────────────────────────
 function Skeleton({ className = '' }: { className?: string }) {
   return <div className={`shimmer-loading rounded-xl ${className}`} />;
 }
@@ -134,8 +158,8 @@ function StatusBadge({ status }: { status: 'PENDING' | 'CONFIRMED' | 'REJECTED' 
   };
   const s = map[status];
   return (
-    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold ${s.bg} ${s.text}`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${s.dot} ${status === 'PENDING' ? 'animate-pulse' : ''}`} />
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap ${s.bg} ${s.text}`}>
+      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${s.dot} ${status === 'PENDING' ? 'animate-pulse' : ''}`} />
       {s.label}
     </span>
   );
@@ -162,11 +186,202 @@ function AnimatedNumber({ value, format }: { value: number; format: (n: number) 
   return <span>{format(display)}</span>;
 }
 
+// ─── Receipt Modal ─────────────────────────────────────────────────────────────
+interface ReceiptModalProps {
+  url: string;
+  onClose: () => void;
+}
+function ReceiptModal({ url, onClose }: ReceiptModalProps) {
+  const isImage = isImageUrl(url);
+
+  // Close on Escape key
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [onClose]);
+
+  // Prevent background scroll
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = ''; };
+  }, []);
+
+  return (
+    <div
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 anim-fadein"
+      onClick={onClose}
+    >
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
+
+      {/* Modal panel */}
+      <div
+        className="relative z-10 anim-modalin flex flex-col rounded-2xl overflow-hidden shadow-[0_32px_80px_-8px_rgba(0,0,0,0.6)] max-w-3xl w-full max-h-[90vh] bg-slate-900"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
+          <p className="text-sm font-semibold text-white">To'lov cheki</p>
+          <div className="flex items-center gap-2">
+            <a
+              href={url}
+              download
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white/80 text-xs font-semibold transition-colors"
+            >
+              <Icon.Download /> Yuklab olish
+            </a>
+            <button
+              onClick={onClose}
+              className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 text-white/80 transition-colors"
+            >
+              <Icon.X />
+            </button>
+          </div>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-auto flex items-center justify-center p-4 min-h-[300px] bg-[#0d1117]">
+          {isImage ? (
+            <img
+              src={url}
+              alt="To'lov cheki"
+              className="max-w-full max-h-[70vh] object-contain rounded-xl shadow-2xl"
+              onError={e => {
+                (e.currentTarget as HTMLImageElement).style.display = 'none';
+                const el = document.getElementById('receipt-fallback');
+                if (el) el.style.display = 'flex';
+              }}
+            />
+          ) : (
+            <div className="flex flex-col items-center gap-4 text-center p-8">
+              <div className="w-16 h-16 rounded-2xl bg-white/10 flex items-center justify-center text-white/60">
+                <Icon.File />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-white/80 mb-1">PDF fayli</p>
+                <p className="text-xs text-white/40">Faylni ko'rish uchun yuklab oling</p>
+              </div>
+              <a
+                href={url}
+                download
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold transition-colors"
+              >
+                <Icon.Download /> Yuklab olish
+              </a>
+            </div>
+          )}
+          {/* Fallback for broken images */}
+          <div
+            id="receipt-fallback"
+            style={{ display: 'none' }}
+            className="flex flex-col items-center gap-3 text-center p-8"
+          >
+            <p className="text-sm text-white/60">Rasm yuklanmadi</p>
+            <a
+              href={url}
+              target="_blank"
+              rel="noreferrer"
+              className="text-indigo-400 text-xs underline"
+            >
+              To'g'ridan-to'g'ri ochish
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── History row ──────────────────────────────────────────────────────────────
+interface HistoryRowProps {
+  record: PaymentRecord;
+  idx: number;
+  onView: (url: string) => void;
+}
+function HistoryRow({ record, idx, onView }: HistoryRowProps) {
+  const date = new Date(record.submittedAt);
+  const dateStr = date.toLocaleDateString('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const timeStr = date.toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' });
+  const receiptUrl = record.receiptUrl ? resolveReceiptUrl(record.receiptUrl) : '';
+
+  return (
+    <div
+      className="grid grid-cols-1 sm:grid-cols-[minmax(90px,auto)_1fr_auto_auto_auto] gap-x-5 gap-y-1 px-5 py-4 items-center hover:bg-slate-50/50 dark:hover:bg-slate-700/20 transition-colors anim-fadein border-b border-slate-100/60 dark:border-slate-700/30 last:border-0"
+      style={{ animationDelay: `${idx * 40}ms` }}
+    >
+      {/* Date */}
+      <div className="flex flex-col sm:col-span-1">
+        <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 tabular-nums">{dateStr}</span>
+        <span className="text-[10px] text-slate-400 dark:text-slate-500 tabular-nums">{timeStr}</span>
+      </div>
+
+      {/* Amount */}
+      <div className="sm:col-span-1">
+        <p className="text-sm font-bold text-slate-900 dark:text-white tabular-nums">
+          {Math.round(record.amountUZS).toLocaleString('uz-UZ')} <span className="font-medium text-slate-400">so'm</span>
+        </p>
+        <p className="text-[11px] text-slate-400 dark:text-slate-500 tabular-nums">
+          ${record.amountUSD.toFixed(2)} · {Math.round(record.exchangeRate).toLocaleString()} UZS/USD
+        </p>
+      </div>
+
+      {/* Status */}
+      <div className="sm:col-span-1 flex items-center">
+        <StatusBadge status={record.status} />
+      </div>
+
+      {/* Reviewed / Decided At */}
+      <div className="sm:col-span-1 hidden sm:flex flex-col text-right">
+        {record.confirmedAt || record.rejectedAt ? (
+          <>
+            <span className="text-[10px] text-slate-400 dark:text-slate-500">
+              {record.confirmedAt ? 'Tasdiqlandi' : 'Rad etildi'}
+            </span>
+            <span className="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">
+              {new Date((record.confirmedAt || record.rejectedAt)!).toLocaleDateString('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+            </span>
+          </>
+        ) : (
+          <span className="text-[10px] text-slate-300 dark:text-slate-600">—</span>
+        )}
+      </div>
+
+      {/* View button */}
+      <div className="sm:col-span-1 flex justify-end">
+        {receiptUrl ? (
+          <button
+            onClick={() => onView(receiptUrl)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-indigo-50 dark:bg-slate-700/60 dark:hover:bg-indigo-900/30 text-slate-600 hover:text-indigo-600 dark:text-slate-300 dark:hover:text-indigo-400 text-xs font-semibold transition-all duration-150 whitespace-nowrap"
+          >
+            <Icon.Eye /> Ko'rish
+          </button>
+        ) : (
+          <span className="text-[11px] text-slate-300 dark:text-slate-600 px-3">—</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── File icon for non-images ──────────────────────────────────────────────────
+function FileIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" />
+    </svg>
+  );
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function Payment() {
   const { status: sharedStatus } = usePaymentStatus();
 
-  // Load from localStorage or shared cache or default, NEVER null so it renders in 0ms!
+  // Load from localStorage or shared cache or default — renders in 0ms
   const [statusData, setStatusData] = useState<PaymentStatusData>(() => {
     if (sharedStatus) return sharedStatus;
     try {
@@ -189,17 +404,14 @@ export default function Payment() {
   useEffect(() => {
     if (sharedStatus) {
       setStatusData(sharedStatus);
-      try {
-        localStorage.setItem('last_payment_status', JSON.stringify(sharedStatus));
-      } catch {}
+      try { localStorage.setItem('last_payment_status', JSON.stringify(sharedStatus)); } catch {}
     }
   }, [sharedStatus]);
+
   const [history, setHistory]           = useState<PaymentRecord[]>([]);
   const [totalRecords, setTotalRecords] = useState(0);
   const [page, setPage]                 = useState(1);
-  const [loading, setLoading]           = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
-  const [refreshing, setRefreshing]     = useState(false);
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl]     = useState<string | null>(null);
@@ -209,17 +421,18 @@ export default function Payment() {
   const [copied, setCopied]             = useState(false);
   const [isDragging, setIsDragging]     = useState(false);
 
+  // Receipt modal
+  const [receiptModal, setReceiptModal] = useState<string | null>(null);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // ── Data fetching ────────────────────────────────────────────────────────
+  // ── Data fetching ──────────────────────────────────────────────────────────
   const fetchStatus = useCallback(async () => {
     try {
       const res = await adminApi.getPaymentStatus();
       if (res.data.success) {
         setStatusData(res.data.data);
-        try {
-          localStorage.setItem('last_payment_status', JSON.stringify(res.data.data));
-        } catch {}
+        try { localStorage.setItem('last_payment_status', JSON.stringify(res.data.data)); } catch {}
       }
     } catch {}
   }, []);
@@ -240,19 +453,11 @@ export default function Payment() {
 
   useEffect(() => {
     (async () => {
-      setLoading(true);
       await Promise.all([fetchStatus(), fetchHistory(1)]);
-      setLoading(false);
     })();
   }, [fetchStatus, fetchHistory]);
 
-  // ── Actions ──────────────────────────────────────────────────────────────
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    await fetchStatus();
-    setTimeout(() => setRefreshing(false), 600);
-  };
-
+  // ── Actions ────────────────────────────────────────────────────────────────
   const handleCopy = () => {
     if (!statusData?.cardNumber) return;
     navigator.clipboard.writeText(statusData.cardNumber.replace(/\s+/g, ''));
@@ -297,87 +502,76 @@ export default function Payment() {
     }
   };
 
-  // ── Derived values ───────────────────────────────────────────────────────
+  // ── Derived values ─────────────────────────────────────────────────────────
   const daysLeft   = statusData?.daysLeft ?? 0;
   const isOverdue  = statusData?.isOverdue ?? false;
   const urgency    = isOverdue ? 'overdue' : daysLeft <= 3 ? 'critical' : daysLeft <= 7 ? 'warning' : 'ok';
   const totalPages = Math.ceil(totalRecords / 10);
 
   const urgencyConfig = {
-    overdue:  { ring: 'ring-red-500/30',   glow: '#ef4444', label: 'Muddati o\'tgan!',   labelColor: 'text-red-500',   bg: 'from-red-500/8 to-rose-500/4' },
+    overdue:  { ring: 'ring-red-500/30',   glow: '#ef4444', label: "Muddati o'tgan!",    labelColor: 'text-red-500',    bg: 'from-red-500/8 to-rose-500/4' },
     critical: { ring: 'ring-red-400/25',   glow: '#f97316', label: `${daysLeft} kun qoldi`, labelColor: 'text-orange-500', bg: 'from-orange-500/8 to-amber-500/4' },
-    warning:  { ring: 'ring-amber-400/25', glow: '#f59e0b', label: `${daysLeft} kun qoldi`, labelColor: 'text-amber-500', bg: 'from-amber-500/8 to-yellow-500/4' },
+    warning:  { ring: 'ring-amber-400/25', glow: '#f59e0b', label: `${daysLeft} kun qoldi`, labelColor: 'text-amber-500',  bg: 'from-amber-500/8 to-yellow-500/4' },
     ok:       { ring: 'ring-slate-200/60 dark:ring-slate-700/40', glow: '#10b981', label: `${daysLeft} kun qoldi`, labelColor: 'text-emerald-500', bg: 'from-slate-50/80 to-white/40 dark:from-slate-800/60 dark:to-slate-900/40' },
   }[urgency];
 
-  // ── Render immediately ──────────────────────────────────────────────────
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <>
-      {/* Global keyframes */}
-      <style>{fadeUp}</style>
+      <style>{STYLES}</style>
+
+      {/* Receipt modal */}
+      {receiptModal && (
+        <ReceiptModal url={receiptModal} onClose={() => setReceiptModal(null)} />
+      )}
 
       <div className="w-full space-y-6 pb-8">
 
-        {/* ── Status cards row ─────────────────────────────────────────────── */}
+        {/* ── Status cards ─────────────────────────────────────────────────── */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {/* Days left card */}
+          {/* Days left */}
           <div
             className={`anim-fadeup relative overflow-hidden rounded-2xl p-5 ring-1 ${urgencyConfig.ring} bg-gradient-to-br ${urgencyConfig.bg} shadow-[0_2px_20px_-4px_rgba(0,0,0,0.08)] backdrop-blur-sm`}
             style={{ animationDelay: '60ms' }}
           >
-            {/* Subtle glow orb */}
             <div className="absolute -top-6 -right-6 w-24 h-24 rounded-full opacity-20 blur-2xl" style={{ background: urgencyConfig.glow }} />
             <div className="relative z-10">
               <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">Qolgan muddat</p>
               <div className={`text-4xl font-black ${urgencyConfig.labelColor} anim-countup leading-none`}>
                 {isOverdue ? '—' : <AnimatedNumber value={daysLeft} format={n => Math.round(n).toString()} />}
               </div>
-              <p className={`text-sm font-semibold mt-1 ${urgencyConfig.labelColor}`}>
-                {urgencyConfig.label}
-              </p>
+              <p className={`text-sm font-semibold mt-1 ${urgencyConfig.labelColor}`}>{urgencyConfig.label}</p>
               {statusData?.nextDueDate && (
                 <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">
                   Muddati: {new Date(statusData.nextDueDate).toLocaleDateString('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric' })}
                 </p>
               )}
             </div>
-            {urgency === 'overdue' && (
-              <div className="absolute bottom-4 right-4 pulse-ring w-3 h-3 rounded-full bg-red-500" />
-            )}
+            {urgency === 'overdue' && <div className="absolute bottom-4 right-4 pulse-ring w-3 h-3 rounded-full bg-red-500" />}
           </div>
 
-          {/* Cost card */}
-          <div
-            className="anim-fadeup rounded-2xl p-5 ring-1 ring-slate-200/70 dark:ring-slate-700/50 bg-white/70 dark:bg-slate-800/50 shadow-[0_2px_20px_-4px_rgba(0,0,0,0.07)] backdrop-blur-sm"
-            style={{ animationDelay: '120ms' }}
-          >
+          {/* Cost */}
+          <div className="anim-fadeup rounded-2xl p-5 ring-1 ring-slate-200/70 dark:ring-slate-700/50 bg-white/70 dark:bg-slate-800/50 shadow-[0_2px_20px_-4px_rgba(0,0,0,0.07)] backdrop-blur-sm" style={{ animationDelay: '120ms' }}>
             <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-3">Oylik narx</p>
             <div className="text-3xl font-black text-slate-900 dark:text-white leading-none anim-countup">
-              {statusData ? (
-                <AnimatedNumber value={statusData.costUSD} format={n => `$${n.toFixed(2)}`} />
-              ) : '—'}
+              {statusData ? <AnimatedNumber value={statusData.costUSD} format={n => `$${n.toFixed(2)}`} /> : '—'}
             </div>
             <p className="text-sm text-slate-400 dark:text-slate-500 mt-1 tabular-nums">
               {statusData ? `≈ ${Math.round(statusData.costUZS).toLocaleString('uz-UZ')} so'm` : ''}
             </p>
           </div>
 
-          {/* Exchange rate card */}
-          <div
-            className="anim-fadeup rounded-2xl p-5 ring-1 ring-slate-200/70 dark:ring-slate-700/50 bg-white/70 dark:bg-slate-800/50 shadow-[0_2px_20px_-4px_rgba(0,0,0,0.07)] backdrop-blur-sm"
-            style={{ animationDelay: '180ms' }}
-          >
+          {/* Exchange rate */}
+          <div className="anim-fadeup rounded-2xl p-5 ring-1 ring-slate-200/70 dark:ring-slate-700/50 bg-white/70 dark:bg-slate-800/50 shadow-[0_2px_20px_-4px_rgba(0,0,0,0.07)] backdrop-blur-sm" style={{ animationDelay: '180ms' }}>
             <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-3">Valyuta kursi (CBU)</p>
             <div className="text-3xl font-black text-slate-900 dark:text-white leading-none anim-countup">
-              {statusData ? (
-                <AnimatedNumber value={statusData.exchangeRate} format={n => `${Math.round(n).toLocaleString('uz-UZ')}`} />
-              ) : '—'}
+              {statusData ? <AnimatedNumber value={statusData.exchangeRate} format={n => `${Math.round(n).toLocaleString('uz-UZ')}`} /> : '—'}
             </div>
             <p className="text-sm text-slate-400 dark:text-slate-500 mt-1">UZS / 1 USD</p>
           </div>
         </div>
 
-        {/* ── Pending payment notice ───────────────────────────────────────── */}
+        {/* ── Pending payment notice ────────────────────────────────────────── */}
         {statusData?.pendingPayment && (
           <div
             className="anim-fadeup flex items-start gap-3 px-5 py-4 rounded-2xl bg-amber-50 dark:bg-amber-950/20 ring-1 ring-amber-200/70 dark:ring-amber-800/30"
@@ -391,18 +585,18 @@ export default function Payment() {
                 {new Date(statusData.pendingPayment.submittedAt).toLocaleDateString('uz-UZ')}
               </p>
             </div>
-            <a
-              href={statusData.pendingPayment.receiptUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 text-xs font-semibold hover:bg-amber-200 dark:hover:bg-amber-800/40 transition-colors shrink-0"
-            >
-              <Icon.Eye /> Chekni ko'rish
-            </a>
+            {statusData.pendingPayment.receiptUrl && (
+              <button
+                onClick={() => setReceiptModal(resolveReceiptUrl(statusData!.pendingPayment!.receiptUrl))}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 text-xs font-semibold hover:bg-amber-200 dark:hover:bg-amber-800/40 transition-colors shrink-0"
+              >
+                <Icon.Eye /> Chekni ko'rish
+              </button>
+            )}
           </div>
         )}
 
-        {/* ── Main two-column section ──────────────────────────────────────── */}
+        {/* ── Main two-column section ───────────────────────────────────────── */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
           {/* Card number */}
@@ -417,12 +611,9 @@ export default function Payment() {
 
             {/* Card visual */}
             <div className="relative rounded-2xl p-5 bg-gradient-to-br from-slate-800 to-slate-900 dark:from-slate-700 dark:to-slate-900 shadow-[0_8px_32px_-8px_rgba(0,0,0,0.35)] overflow-hidden">
-              {/* Glossy overlay */}
               <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent pointer-events-none" />
-              {/* Decorative circles */}
               <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full bg-white/5" />
               <div className="absolute -bottom-12 -left-8 w-36 h-36 rounded-full bg-white/4" />
-
               <div className="relative z-10">
                 <div className="flex justify-between items-start mb-6">
                   <div className="flex gap-1.5">
@@ -490,7 +681,7 @@ export default function Payment() {
                   </>
                 ) : selectedFile ? (
                   <div className="flex flex-col items-center gap-2 text-emerald-600 dark:text-emerald-400">
-                    <Icon.File />
+                    <FileIcon />
                     <p className="text-xs font-semibold text-center max-w-[180px] truncate">{selectedFile.name}</p>
                     <p className="text-[10px] text-slate-400">{(selectedFile.size / 1024).toFixed(0)} KB</p>
                   </div>
@@ -499,14 +690,13 @@ export default function Payment() {
                     <Icon.Upload />
                     <div className="text-center">
                       <p className="text-xs font-semibold text-slate-600 dark:text-slate-400">Chekni bu yerga tashlang</p>
-                      <p className="text-[11px] text-slate-400 mt-0.5">yoki bosib tanlang • JPG, PNG, PDF • max 10MB</p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">yoki bosib tanlang · JPG, PNG, PDF · max 10MB</p>
                     </div>
                   </div>
                 )}
                 <input ref={fileInputRef} type="file" accept="image/*,application/pdf" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) handleSelectFile(f); }} />
               </div>
 
-              {/* Clear file */}
               {selectedFile && (
                 <button
                   type="button"
@@ -517,7 +707,6 @@ export default function Payment() {
                 </button>
               )}
 
-              {/* Error / success messages */}
               {uploadError && (
                 <div className="flex items-start gap-2.5 px-4 py-3 rounded-xl bg-red-50 dark:bg-red-950/20 ring-1 ring-red-200/70 dark:ring-red-900/30 anim-fadein">
                   <span className="text-red-500 mt-0.5 shrink-0"><Icon.AlertTriangle /></span>
@@ -531,7 +720,6 @@ export default function Payment() {
                 </div>
               )}
 
-              {/* Submit button */}
               <button
                 type="submit"
                 disabled={!selectedFile || uploading}
@@ -547,21 +735,46 @@ export default function Payment() {
           </div>
         </div>
 
-        {/* ── Payment history ──────────────────────────────────────────────── */}
+        {/* ── Payment history ───────────────────────────────────────────────── */}
         <div
           className="anim-fadeup rounded-2xl ring-1 ring-slate-200/70 dark:ring-slate-700/50 bg-white/70 dark:bg-slate-800/50 shadow-[0_2px_20px_-4px_rgba(0,0,0,0.07)] backdrop-blur-sm overflow-hidden"
           style={{ animationDelay: '360ms' }}
         >
-          <div className="px-6 py-5 flex items-center justify-between">
-            <div>
-              <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-200">To'lovlar tarixi</h2>
-              <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{totalRecords} ta yozuv</p>
+          {/* Header */}
+          <div className="px-5 py-4 flex items-center justify-between border-b border-slate-100/80 dark:border-slate-700/40">
+            <div className="flex items-center gap-2.5">
+              <span className="text-slate-400 dark:text-slate-500"><Icon.History /></span>
+              <div>
+                <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-200">To'lovlar tarixi</h2>
+                <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">{totalRecords} ta yozuv</p>
+              </div>
             </div>
+            <button
+              onClick={() => fetchHistory(page)}
+              disabled={historyLoading}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-700/50 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 text-xs font-semibold transition-colors disabled:opacity-50"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className={historyLoading ? 'spin' : ''}>
+                <polyline points="23 4 23 10 17 10" /><polyline points="1 20 1 14 7 14" />
+                <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" />
+              </svg>
+              Yangilash
+            </button>
           </div>
 
+          {/* Column headers */}
+          {!historyLoading && history.length > 0 && (
+            <div className="hidden sm:grid grid-cols-[minmax(90px,auto)_1fr_auto_auto_auto] gap-x-5 px-5 py-3 bg-slate-50/60 dark:bg-slate-900/30 border-b border-slate-100/60 dark:border-slate-700/30">
+              {['Sana & Vaqt', 'Summa', 'Holat', "Ko'rildi", 'Chek'].map(h => (
+                <span key={h} className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">{h}</span>
+              ))}
+            </div>
+          )}
+
+          {/* Rows */}
           {historyLoading ? (
-            <div className="px-6 pb-6 space-y-3">
-              {[1,2,3].map(i => <Skeleton key={i} className="h-14" />)}
+            <div className="px-5 py-5 space-y-3">
+              {[1, 2, 3].map(i => <Skeleton key={i} className="h-16" />)}
             </div>
           ) : history.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center px-6">
@@ -573,48 +786,20 @@ export default function Payment() {
             </div>
           ) : (
             <>
-              {/* Table header */}
-              <div className="px-6 grid grid-cols-[1fr_1.2fr_1fr_auto_auto] gap-4 pb-2">
-                {['Sana','Summa','Kurs','Holat','Chek'].map(h => (
-                  <span key={h} className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">{h}</span>
-                ))}
-              </div>
-
-              <div className="divide-y divide-slate-100/80 dark:divide-slate-700/40">
+              <div>
                 {history.map((record, idx) => (
-                  <div
+                  <HistoryRow
                     key={record.id}
-                    className="px-6 py-4 grid grid-cols-[1fr_1.2fr_1fr_auto_auto] gap-4 items-center hover:bg-slate-50/60 dark:hover:bg-slate-700/20 transition-colors anim-fadein"
-                    style={{ animationDelay: `${idx * 40}ms` }}
-                  >
-                    <span className="text-xs text-slate-500 dark:text-slate-400 tabular-nums">
-                      {new Date(record.submittedAt).toLocaleDateString('uz-UZ', { day:'2-digit', month:'2-digit', year:'numeric' })}
-                    </span>
-                    <div>
-                      <p className="text-sm font-bold text-slate-900 dark:text-white tabular-nums">
-                        {Math.round(record.amountUZS).toLocaleString('uz-UZ')} so'm
-                      </p>
-                      <p className="text-[11px] text-slate-400">${record.amountUSD.toFixed(2)}</p>
-                    </div>
-                    <span className="text-xs text-slate-400 dark:text-slate-500 tabular-nums">
-                      {Math.round(record.exchangeRate).toLocaleString()}
-                    </span>
-                    <StatusBadge status={record.status} />
-                    <a
-                      href={record.receiptUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-700/60 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs font-semibold transition-colors"
-                    >
-                      <Icon.Eye /> Ko'rish
-                    </a>
-                  </div>
+                    record={record}
+                    idx={idx}
+                    onView={url => setReceiptModal(url)}
+                  />
                 ))}
               </div>
 
               {/* Pagination */}
               {totalPages > 1 && (
-                <div className="px-6 py-4 flex items-center justify-between border-t border-slate-100/80 dark:border-slate-700/40">
+                <div className="px-5 py-4 flex items-center justify-between border-t border-slate-100/80 dark:border-slate-700/40">
                   <button
                     onClick={() => fetchHistory(page - 1)}
                     disabled={page <= 1 || historyLoading}
@@ -622,7 +807,7 @@ export default function Payment() {
                   >
                     <Icon.ChevronLeft /> Oldingi
                   </button>
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1">
                     {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
                       <button
                         key={p}
