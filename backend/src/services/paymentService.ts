@@ -171,6 +171,9 @@ export async function submitPayment(params: {
   const rawClientUrl = (ENV.CLIENT_URL || '').split(',')[0].trim().replace(/\/+$/, '');
   const publicReceiptUrl = `${rawClientUrl}/api/admin/payment/receipt/${params.filename}`;
 
+  cache.invalidate('payment:status');
+  cache.invalidate('payment:history');
+
   try {
     const msgId = await sendPaymentNotification({
       receiptId: record.id,
@@ -211,7 +214,13 @@ export async function confirmPayment(recordId: string, replyChatId?: string | nu
   }
 
   const now = new Date();
-  const newDueDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+  const settings = await getOrCreateSettings();
+
+  // Agar muddat hali tugamagan bo'lsa (masalan 60 kun qolgan), unga yana 30 kun qo'shiladi (60 -> 90 kun).
+  // Agar muddat o'tib ketgan bo'lsa, hozirgi kundan boshlab 30 kun beriladi.
+  const currentDueDate = new Date(settings.nextDueDate);
+  const baseDate = currentDueDate.getTime() > now.getTime() ? currentDueDate : now;
+  const newDueDate = new Date(baseDate.getTime() + 30 * 24 * 60 * 60 * 1000);
 
   await prisma.$transaction([
     prisma.paymentRecord.update({
@@ -225,7 +234,6 @@ export async function confirmPayment(recordId: string, replyChatId?: string | nu
       where: { id: 'singleton' },
       update: {
         nextDueDate: newDueDate,
-        cycleStartDate: now,
         isActive: true,
       },
       create: {

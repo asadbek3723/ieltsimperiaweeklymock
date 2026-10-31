@@ -378,30 +378,14 @@ function FileIcon() {
 export default function Payment() {
   const { status: sharedStatus } = usePaymentStatus();
 
-  // Load from localStorage or shared cache or default — renders in 0ms
-  const [statusData, setStatusData] = useState<PaymentStatusData>(() => {
-    if (sharedStatus) return sharedStatus;
-    try {
-      const saved = localStorage.getItem('last_payment_status');
-      if (saved) return JSON.parse(saved);
-    } catch {}
-    return {
-      daysLeft: 1,
-      isOverdue: false,
-      nextDueDate: new Date().toISOString(),
-      cycleStartDate: new Date().toISOString(),
-      costUSD: 5.20,
-      costUZS: 62500,
-      exchangeRate: 12023,
-      cardNumber: '4916 9902 5000 4410',
-      pendingPayment: null,
-    };
-  });
+  // Fresh state: starts as null so loaders show cleanly until live database/API response arrives
+  const [statusData, setStatusData] = useState<PaymentStatusData | null>(sharedStatus || null);
+  const [statusLoading, setStatusLoading] = useState<boolean>(!sharedStatus);
 
   useEffect(() => {
     if (sharedStatus) {
       setStatusData(sharedStatus);
-      try { localStorage.setItem('last_payment_status', JSON.stringify(sharedStatus)); } catch {}
+      setStatusLoading(false);
     }
   }, [sharedStatus]);
 
@@ -429,9 +413,12 @@ export default function Payment() {
       const res = await adminApi.getPaymentStatus();
       if (res.data.success) {
         setStatusData(res.data.data);
+        setStatusLoading(false);
         try { localStorage.setItem('last_payment_status', JSON.stringify(res.data.data)); } catch {}
       }
-    } catch {}
+    } catch {
+      setStatusLoading(false);
+    }
   }, []);
 
   const fetchHistory = useCallback(async (p = 1, silent = false) => {
@@ -542,37 +529,64 @@ export default function Payment() {
             <div className="absolute -top-6 -right-6 w-24 h-24 rounded-full opacity-20 blur-2xl" style={{ background: urgencyConfig.glow }} />
             <div className="relative z-10">
               <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">Qolgan muddat</p>
-              <div className={`text-4xl font-black ${urgencyConfig.labelColor} anim-countup leading-none`}>
-                {isOverdue ? '—' : <AnimatedNumber value={daysLeft} format={n => Math.round(n).toString()} />}
-              </div>
-              <p className={`text-sm font-semibold mt-1 ${urgencyConfig.labelColor}`}>{urgencyConfig.label}</p>
-              {statusData?.nextDueDate && (
-                <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">
-                  Muddati: {new Date(statusData.nextDueDate).toLocaleDateString('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric' })}
-                </p>
+              {statusLoading || !statusData ? (
+                <div className="space-y-2 py-1">
+                  <div className="h-9 w-24 shimmer-loading rounded-xl" />
+                  <div className="h-4 w-28 shimmer-loading rounded-lg" />
+                </div>
+              ) : (
+                <>
+                  <div className={`text-4xl font-black ${urgencyConfig.labelColor} anim-countup leading-none`}>
+                    {isOverdue ? '—' : <AnimatedNumber value={daysLeft} format={n => Math.round(n).toString()} />}
+                  </div>
+                  <p className={`text-sm font-semibold mt-1 ${urgencyConfig.labelColor}`}>{urgencyConfig.label}</p>
+                  {statusData?.nextDueDate && (
+                    <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">
+                      Muddati: {new Date(statusData.nextDueDate).toLocaleDateString('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                    </p>
+                  )}
+                </>
               )}
             </div>
-            {urgency === 'overdue' && <div className="absolute bottom-4 right-4 pulse-ring w-3 h-3 rounded-full bg-red-500" />}
+            {urgency === 'overdue' && !statusLoading && <div className="absolute bottom-4 right-4 pulse-ring w-3 h-3 rounded-full bg-red-500" />}
           </div>
 
           {/* Cost */}
           <div className="anim-fadeup rounded-2xl p-5 ring-1 ring-slate-200/70 dark:ring-slate-700/50 bg-white/70 dark:bg-slate-800/50 shadow-[0_2px_20px_-4px_rgba(0,0,0,0.07)] backdrop-blur-sm" style={{ animationDelay: '120ms' }}>
             <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-3">Oylik narx</p>
-            <div className="text-3xl font-black text-slate-900 dark:text-white leading-none anim-countup">
-              {statusData ? <AnimatedNumber value={statusData.costUSD} format={n => `$${n.toFixed(2)}`} /> : '—'}
-            </div>
-            <p className="text-sm text-slate-400 dark:text-slate-500 mt-1 tabular-nums">
-              {statusData ? `≈ ${Math.round(statusData.costUZS).toLocaleString('uz-UZ')} so'm` : ''}
-            </p>
+            {statusLoading || !statusData ? (
+              <div className="space-y-2 py-1">
+                <div className="h-9 w-28 shimmer-loading rounded-xl" />
+                <div className="h-4 w-32 shimmer-loading rounded-lg" />
+              </div>
+            ) : (
+              <>
+                <div className="text-3xl font-black text-slate-900 dark:text-white leading-none anim-countup">
+                  <AnimatedNumber value={statusData.costUSD} format={n => `$${n.toFixed(2)}`} />
+                </div>
+                <p className="text-sm text-slate-400 dark:text-slate-500 mt-1 tabular-nums">
+                  ≈ {Math.round(statusData.costUZS).toLocaleString('uz-UZ')} so'm
+                </p>
+              </>
+            )}
           </div>
 
           {/* Exchange rate */}
           <div className="anim-fadeup rounded-2xl p-5 ring-1 ring-slate-200/70 dark:ring-slate-700/50 bg-white/70 dark:bg-slate-800/50 shadow-[0_2px_20px_-4px_rgba(0,0,0,0.07)] backdrop-blur-sm" style={{ animationDelay: '180ms' }}>
             <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-3">Valyuta kursi (CBU)</p>
-            <div className="text-3xl font-black text-slate-900 dark:text-white leading-none anim-countup">
-              {statusData ? <AnimatedNumber value={statusData.exchangeRate} format={n => `${Math.round(n).toLocaleString('uz-UZ')}`} /> : '—'}
-            </div>
-            <p className="text-sm text-slate-400 dark:text-slate-500 mt-1">UZS / 1 USD</p>
+            {statusLoading || !statusData ? (
+              <div className="space-y-2 py-1">
+                <div className="h-9 w-32 shimmer-loading rounded-xl" />
+                <div className="h-4 w-24 shimmer-loading rounded-lg" />
+              </div>
+            ) : (
+              <>
+                <div className="text-3xl font-black text-slate-900 dark:text-white leading-none anim-countup">
+                  <AnimatedNumber value={statusData.exchangeRate} format={n => `${Math.round(n).toLocaleString('uz-UZ')}`} />
+                </div>
+                <p className="text-sm text-slate-400 dark:text-slate-500 mt-1">UZS / 1 USD</p>
+              </>
+            )}
           </div>
         </div>
 

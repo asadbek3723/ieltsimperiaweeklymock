@@ -152,13 +152,8 @@ export async function sendPaymentNotification(params: {
   const rateFormatted = Math.round(params.exchangeRate).toLocaleString('uz-UZ');
 
   const caption = 
-    `💳 *Yangi server to'lov cheki yuklandi!*\n\n` +
-    `💵 *Summa USD:* $${params.amountUSD.toFixed(2)}\n` +
-    `🇺🇿 *Summa UZS:* ${uzsFormatted} so'm\n` +
-    `📊 *Markaziy Bank kursi:* 1 USD = ${rateFormatted} so'm\n` +
-    `📅 *Vaqti:* ${dateFormatted}\n\n` +
-    `🆔 \`${params.receiptId}\`\n\n` +
-    `Iltimos, chekni ko'rib chiqib tasdiqlang yoki rad eting:`;
+    `1 USD = ${rateFormatted} so'm (${uzsFormatted} so'm)\n` +
+    `ID: \`${params.receiptId}\``;
 
   const inlineKeyboard = [
     [
