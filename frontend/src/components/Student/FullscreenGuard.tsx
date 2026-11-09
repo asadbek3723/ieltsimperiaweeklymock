@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { beginAntiCheatGrace } from '../../hooks/useAntiCheat';
 
 interface FullscreenGuardProps {
     onEnterFullscreen: () => void;
@@ -93,6 +94,7 @@ export default function FullscreenGuard({ onEnterFullscreen, isEnabled }: Fullsc
         try { onEnterFullscreen(); } catch { /* ignore */ }
 
         try {
+            beginAntiCheatGrace();
             await requestFullscreenCrossBrowser(document.documentElement);
             // Success: fullscreenchange event will update isFullscreen state
         } catch (err: unknown) {

@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTest } from '../../context/TestContext';
 import { SS_PIN, SS_ANSWERS, SS_RULES_ACCEPTED } from '../../context/TestContext';
-import { useAntiCheat } from '../../hooks/useAntiCheat';
+import { useAntiCheat, beginAntiCheatGrace } from '../../hooks/useAntiCheat';
 import { studentApi } from '../../services/api';
 import { connectSocket } from '../../services/socketClient';
 import Timer from '../Common/Timer';
@@ -59,6 +59,8 @@ export default function TestTaking() {
     };
     const req = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen;
     if (req) {
+      // Fullscreen transition fires blur/visibilitychange in some browsers — don't treat it as cheating
+      beginAntiCheatGrace();
       req.call(el).catch(err => {
         // Silently ignore — FullscreenGuard handles the error UI
         console.warn('[TestTaking] Fullscreen request failed:', err?.message || err);
@@ -535,8 +537,9 @@ export default function TestTaking() {
                 {/* Fullscreen Toggle */}
                 <button
                   onClick={() => {
-                    if (!document.fullscreenElement) document.documentElement.requestFullscreen();
-                    else document.exitFullscreen();
+                    beginAntiCheatGrace();
+                    if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {});
+                    else document.exitFullscreen().catch(() => {});
                   }}
                   className="w-full py-2.5 bg-gray-50 hover:bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-xl text-sm font-bold transition-colors flex items-center justify-center gap-2"
                 >
