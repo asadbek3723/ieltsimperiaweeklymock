@@ -21,7 +21,19 @@ function getIsFullscreen(): boolean {
         doc.webkitFullscreenElement ||
         doc.mozFullScreenElement ||
         doc.msFullscreenElement
-    );
+    ) || isBrowserFullscreen();
+}
+
+/**
+ * Browser-level fullscreen (F11, macOS green button / Ctrl+Cmd+F) does NOT set
+ * document.fullscreenElement, so detect it by the window filling the screen
+ * with no browser toolbar. The 60px height tolerance covers the MacBook notch.
+ */
+function isBrowserFullscreen(): boolean {
+    const noToolbar = window.outerHeight - window.innerHeight <= 4;
+    const fullWidth = window.innerWidth >= window.screen.width - 4;
+    const fullHeight = window.innerHeight >= window.screen.height - 60;
+    return noToolbar && fullWidth && fullHeight;
 }
 
 /**
@@ -75,8 +87,12 @@ export default function FullscreenGuard({ onEnterFullscreen, isEnabled }: Fullsc
         document.addEventListener('webkitfullscreenchange', handleChange);
         document.addEventListener('mozfullscreenchange', handleChange);
         document.addEventListener('MSFullscreenChange', handleChange);
+        // F11 / green-button fullscreen only fires resize
+        window.addEventListener('resize', handleChange);
+        handleChange();
 
         return () => {
+            window.removeEventListener('resize', handleChange);
             document.removeEventListener('fullscreenchange', handleChange);
             document.removeEventListener('webkitfullscreenchange', handleChange);
             document.removeEventListener('mozfullscreenchange', handleChange);
