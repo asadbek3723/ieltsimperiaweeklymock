@@ -133,8 +133,13 @@ export default function TestTaking() {
     setAnswer(answer.questionId, answer);
   }, [setAnswer]);
 
+  // While the break modal for the next section is open, the previous section is
+  // already closed on the server — never advance/submit again from it.
+  const pendingSectionRef = useRef(pendingSection);
+  pendingSectionRef.current = pendingSection;
+
   const submitSection = useCallback(async () => {
-    if (!testSessionId || submittingRef.current) return;
+    if (!testSessionId || submittingRef.current || pendingSectionRef.current) return;
     submittingRef.current = true;
     setSubmitting(true);
     try {
@@ -361,7 +366,7 @@ export default function TestTaking() {
               {isLast ? 'Tugatish' : 'Tashlab o\'tish'}
             </button>
 
-            <Timer deadline={currentSection.deadline} onExpire={submitSection} serverTime={serverTime} />
+            <Timer key={currentSection.sectionOrder} deadline={currentSection.deadline} onExpire={submitSection} serverTime={serverTime} />
           </div>
         </div>
       </div>
