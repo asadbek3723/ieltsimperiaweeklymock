@@ -43,6 +43,7 @@ const FULLSCREEN_EVENTS = ['fullscreenchange', 'webkitfullscreenchange', 'mozful
 
 export function useAntiCheat(testSessionId: string | null, enabled: boolean) {
   const lastViolation = useRef<number>(0);
+  const strikeRef = useRef(0);
   const [fatalStrike, setFatalStrike] = useState(0);
   const [isFullscreenExit, setIsFullscreenExit] = useState(false);
 
@@ -83,15 +84,13 @@ export function useAntiCheat(testSessionId: string | null, enabled: boolean) {
       console.log(`[AntiCheat] Detected ${type}. Fatal: ${isFatal}`);
 
       if (isFatal) {
-        setFatalStrike((prev: number) => {
-          const next = prev + 1;
-          emitViolation(type, next, true);
-          return next;
-        });
+        strikeRef.current += 1;
+        setFatalStrike(strikeRef.current);
       } else {
         setIsFullscreenExit(true);
-        emitViolation(type, 0, false);
       }
+      // Send the current strike count (not 0) so the admin panel counter isn't reset.
+      emitViolation(type, strikeRef.current, isFatal);
     };
 
     const cancelPending = () => {
@@ -101,37 +100,45 @@ export function useAntiCheat(testSessionId: string | null, enabled: boolean) {
       }
     };
 
-    // Only flag focus/visibility loss if it is still lost after a short delay
-    // and no fullscreen transition happened in the meantime.
+    const isAwayFromPage = () => {
+      if (document.hidden) return 'tab-switch' as const;
+      // Focus moved into an iframe inside our own page (e.g. embedded media) — not cheating.
+      const active = document.activeElement;
+      if (active && active.tagName === 'IFRAME') return null;
+      if (!document.hasFocus()) return 'focus-loss' as const;
+      return null;
+    };
+
+    // Focus/visibility loss only counts if it is STILL lost after a short delay
+    // AND after any fullscreen grace window has ended. Events during the grace
+    // window are deferred (not dropped), so "press ESC then switch tab" is still caught.
     const scheduleCheck = () => {
-      if (inGrace()) return;
       cancelPending();
+      const wait = Math.max(CONFIRM_DELAY_MS, graceUntil - Date.now() + 250);
       pendingCheck = setTimeout(() => {
         pendingCheck = null;
-        if (inGrace()) return;
-        if (document.hidden) {
-          reportViolation('tab-switch');
+        if (inGrace()) {
+          scheduleCheck();
           return;
         }
-        // Focus moved into an iframe inside our own page (e.g. embedded media) — not cheating.
-        const active = document.activeElement;
-        if (active && active.tagName === 'IFRAME') return;
-        if (!document.hasFocus()) reportViolation('focus-loss');
-      }, CONFIRM_DELAY_MS);
+        const away = isAwayFromPage();
+        if (away) reportViolation(away);
+      }, wait);
     };
 
     const handleVisibilityChange = () => {
       if (document.hidden) scheduleCheck();
-      else cancelPending();
+      else if (document.hasFocus()) cancelPending();
     };
 
     const handleBlur = () => scheduleCheck();
-    const handleFocus = () => cancelPending();
+    const handleFocus = () => {
+      if (!document.hidden) cancelPending();
+    };
 
     const handleFullscreenChange = () => {
       // Any fullscreen transition may emit blur/visibility noise.
       beginAntiCheatGrace();
-      cancelPending();
       if (!getIsFullscreen()) {
         reportViolation('fullscreen-exit');
       } else {

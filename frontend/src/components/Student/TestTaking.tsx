@@ -15,6 +15,15 @@ import TestRulesModal from './TestRulesModal';
 import ExpulsionOverlay from './ExpulsionOverlay';
 import { ClientExercise, ClientPracticeQuestion, SubmitAnswer } from '../../types';
 
+/** Network drop, timeout, rate limit or gateway/server error without an app message. */
+function isTransientError(err: unknown): boolean {
+  const e = err as { code?: string; response?: { status?: number; data?: { message?: string } } };
+  if (!e?.response) return true;
+  const status = e.response.status ?? 0;
+  if (status === 429 || status === 502 || status === 503 || status === 504) return true;
+  return status >= 500 && !e.response.data?.message;
+}
+
 export default function TestTaking() {
   const { phase, testSessionId, currentSection, title, sections, setAnswer, answers, getAllAnswers, goToNextSection, completeTest, initTest, reset, serverTime } = useTest();
   const navigate = useNavigate();
@@ -141,7 +150,19 @@ export default function TestTaking() {
         setPendingSection(nextData);
         return;
       } else {
-        const res = await studentApi.submitTest(testSessionId, getAllAnswers());
+        // Retry transient failures (internet drop, 5xx, 429, timeout). Safe: if an earlier
+        // attempt already reached the server, the retry gets "Aktiv sessiya topilmadi"
+        // and is handled below by redirecting to results.
+        let res;
+        for (let attempt = 0; ; attempt++) {
+          try {
+            res = await studentApi.submitTest(testSessionId, getAllAnswers());
+            break;
+          } catch (e) {
+            if (attempt >= 3 || !isTransientError(e)) throw e;
+            await new Promise(r => setTimeout(r, 1500 * 2 ** attempt));
+          }
+        }
         // Test fully complete — clear session restore data
         try {
           sessionStorage.removeItem(SS_PIN);
@@ -172,9 +193,14 @@ export default function TestTaking() {
         navigate('/student/results', { replace: true });
         return;
       }
+      const noResponse = !(err as { response?: unknown })?.response;
       const msg = isTimeout
         ? 'Server vaqt tugadi. Qaytadan urinib ko\'ring.'
-        : serverMsg || 'Xatolik yuz berdi. Iltimos, qaytadan urinib ko\'ring.';
+        : serverMsg
+          ? serverMsg
+          : noResponse
+            ? 'Internet aloqasi uzildi. Javoblaringiz saqlangan — aloqa tiklangach «Tugatish» tugmasini qayta bosing.'
+            : `Server xatosi (${statusCode}). Javoblaringiz saqlangan — iltimos, qaytadan urinib ko'ring.`;
       setSubmitError(msg);
     } finally {
       submittingRef.current = false;
